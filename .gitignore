@@ -39,3 +39,9 @@
 
 # debug information files
 *.dwo
+
+# Compile command files
+compile_commands.json
+
+# Bazel files
+bazel-*

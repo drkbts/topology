@@ -1,0 +1,18 @@
+# MODULE.bazel
+
+"""
+This is a module for managing your Bazel dependencies!
+"""
+
+module(
+    name = "topology", 
+    version = "1.0"
+)
+
+# Choose the most recent version available at
+# https://registry.bazel.build/modules/googletest
+bazel_dep(name = "googletest", version = "1.17.0")
+bazel_dep(name = "rules_cc", version = "0.1.1")
+
+# Add Boost Graph Library
+bazel_dep(name = "boost.graph", version = "1.87.0")
