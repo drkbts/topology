@@ -45,3 +45,6 @@ compile_commands.json
 
 # Bazel files
 bazel-*
+
+# VSCode folder
+.vscode/
