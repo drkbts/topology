@@ -347,18 +347,18 @@ TEST_F(UMeshTest, AddVertexAndEdgeDisabled) {
 
 }  // namespace
 
-// Tensor Product Tests
+// Cartesian Product Tests
 namespace {
 
-class TensorProductTest : public ::testing::Test {
+class CartesianProductTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Fresh setup for each test
   }
 };
 
-TEST_F(TensorProductTest, UtilityFunctions) {
-  using namespace topology::tensor_product_utils;
+TEST_F(CartesianProductTest, UtilityFunctions) {
+  using namespace topology::gproduct_utils;
   
   // Test encode/decode vertex pairs
   EXPECT_EQ(encode_vertex_pair(0, 0, 3), 0);
@@ -378,19 +378,19 @@ TEST_F(TensorProductTest, UtilityFunctions) {
   EXPECT_EQ(g2_id2, 2);
 }
 
-TEST_F(TensorProductTest, SingleVertexGraphs) {
+TEST_F(CartesianProductTest, SingleVertexGraphs) {
   Graph g1, g2;
   g1.add_vertex(0);
   g2.add_vertex(0);
   
-  Graph product = tensor_product(g1, g2);
+  Graph product = gproduct(g1, g2);
   
   EXPECT_EQ(product.num_vertices, 1);
   EXPECT_EQ(product.num_edges, 0);
   EXPECT_EQ(product[boost::graph_bundle].name, "Generic ⊗ Generic");
 }
 
-TEST_F(TensorProductTest, TwoVertexPaths) {
+TEST_F(CartesianProductTest, TwoVertexPaths) {
   // G: 0→1
   Graph g1;
   g1.add_vertex(0);
@@ -403,7 +403,7 @@ TEST_F(TensorProductTest, TwoVertexPaths) {
   g2.add_vertex(1);
   g2.add_edge(0, 1);
   
-  Graph product = tensor_product(g1, g2);
+  Graph product = gproduct(g1, g2);
   
   // Should have 4 vertices: (0,0), (0,1), (1,0), (1,1)
   EXPECT_EQ(product.num_vertices, 4);
@@ -423,7 +423,7 @@ TEST_F(TensorProductTest, TwoVertexPaths) {
   EXPECT_EQ(edge_set.count({2, 3}), 1);  // (1,0)→(1,1)
 }
 
-TEST_F(TensorProductTest, OperatorOverload) {
+TEST_F(CartesianProductTest, OperatorOverload) {
   UMesh mesh1(2);  // 0→1
   UMesh mesh2(2);  // 0→1
   
@@ -434,11 +434,11 @@ TEST_F(TensorProductTest, OperatorOverload) {
   EXPECT_EQ(product[boost::graph_bundle].name, "UMesh ⊗ UMesh");
 }
 
-TEST_F(TensorProductTest, RingTimesPath) {
+TEST_F(CartesianProductTest, RingTimesPath) {
   URing ring(3);   // 0→1→2→0
   UMesh path(2);   // 0→1
   
-  Graph product = tensor_product(ring, path);
+  Graph product = gproduct(ring, path);
   
   // Should have 6 vertices: (0,0), (0,1), (1,0), (1,1), (2,0), (2,1)
   EXPECT_EQ(product.num_vertices, 6);
@@ -451,11 +451,11 @@ TEST_F(TensorProductTest, RingTimesPath) {
   EXPECT_EQ(product[boost::graph_bundle].name, "URing ⊗ UMesh");
 }
 
-TEST_F(TensorProductTest, PathTimesPath3x3) {
+TEST_F(CartesianProductTest, PathTimesPath3x3) {
   UMesh path1(3);  // 0→1→2
   UMesh path2(3);  // 0→1→2
   
-  Graph grid = tensor_product(path1, path2);
+  Graph grid = gproduct(path1, path2);
   
   // Should create a 3×3 grid
   EXPECT_EQ(grid.num_vertices, 9);
@@ -478,11 +478,11 @@ TEST_F(TensorProductTest, PathTimesPath3x3) {
   EXPECT_EQ(edge_set.count({1, 2}), 1);  // (0,1)→(0,2)
 }
 
-TEST_F(TensorProductTest, RingTimesRingTorus) {
+TEST_F(CartesianProductTest, RingTimesRingTorus) {
   URing ring1(3);  // 0→1→2→0
   URing ring2(3);  // 0→1→2→0
   
-  Graph torus = tensor_product(ring1, ring2);
+  Graph torus = gproduct(ring1, ring2);
   
   // Should create a 3×3 torus
   EXPECT_EQ(torus.num_vertices, 9);
@@ -495,11 +495,11 @@ TEST_F(TensorProductTest, RingTimesRingTorus) {
   EXPECT_EQ(torus[boost::graph_bundle].name, "URing ⊗ URing");
 }
 
-TEST_F(TensorProductTest, AsymmetricProduct) {
+TEST_F(CartesianProductTest, AsymmetricProduct) {
   UMesh path(4);   // 0→1→2→3
   URing ring(2);   // 0→1→0
   
-  Graph product = tensor_product(path, ring);
+  Graph product = gproduct(path, ring);
   
   EXPECT_EQ(product.num_vertices, 8);
   
@@ -509,13 +509,63 @@ TEST_F(TensorProductTest, AsymmetricProduct) {
   EXPECT_EQ(product.num_edges, 14);
 }
 
-TEST_F(TensorProductTest, EmptyGraphHandling) {
+TEST_F(CartesianProductTest, EmptyGraphHandling) {
   Graph empty1, empty2;
   
-  Graph product = tensor_product(empty1, empty2);
+  Graph product = gproduct(empty1, empty2);
   
   EXPECT_EQ(product.num_vertices, 0);
   EXPECT_EQ(product.num_edges, 0);
+}
+
+TEST_F(CartesianProductTest, ScalarProductFormula) {
+  // Test that |V(G1 ⊗ G2)| = |V(G1)| × |V(G2)|
+  // Test that |E(G1 ⊗ G2)| = |V(G1)| × |E(G2)| + |E(G1)| × |V(G2)|
+  
+  // 3-vertex path × 4-vertex path
+  UMesh path1(3);  // 3 vertices, 2 edges
+  UMesh path2(4);  // 4 vertices, 3 edges
+  
+  Graph product = gproduct(path1, path2);
+  
+  // Should have 3 × 4 = 12 vertices
+  EXPECT_EQ(product.num_vertices, 12);
+  EXPECT_EQ(product.num_vertices, path1.num_vertices * path2.num_vertices);
+  
+  // Should have 3×3 + 2×4 = 9 + 8 = 17 edges
+  size_t expected_edges = path1.num_vertices * path2.num_edges + path1.num_edges * path2.num_vertices;
+  EXPECT_EQ(product.num_edges, expected_edges);
+  EXPECT_EQ(product.num_edges, 17);
+  
+  // 5-vertex ring × 2-vertex path  
+  URing ring(5);   // 5 vertices, 5 edges
+  UMesh path(2);   // 2 vertices, 1 edge
+  
+  Graph product2 = gproduct(ring, path);
+  
+  // Should have 5 × 2 = 10 vertices
+  EXPECT_EQ(product2.num_vertices, 10);
+  EXPECT_EQ(product2.num_vertices, ring.num_vertices * path.num_vertices);
+  
+  // Should have 5×1 + 5×2 = 5 + 10 = 15 edges
+  expected_edges = ring.num_vertices * path.num_edges + ring.num_edges * path.num_vertices;
+  EXPECT_EQ(product2.num_edges, expected_edges);
+  EXPECT_EQ(product2.num_edges, 15);
+  
+  // Different sized rings
+  URing ring1(7);  // 7 vertices, 7 edges
+  URing ring2(3);  // 3 vertices, 3 edges
+  
+  Graph torus = gproduct(ring1, ring2);
+  
+  // Should have 7 × 3 = 21 vertices
+  EXPECT_EQ(torus.num_vertices, 21);
+  EXPECT_EQ(torus.num_vertices, ring1.num_vertices * ring2.num_vertices);
+  
+  // Should have 7×3 + 7×3 = 21 + 21 = 42 edges
+  expected_edges = ring1.num_vertices * ring2.num_edges + ring1.num_edges * ring2.num_vertices;
+  EXPECT_EQ(torus.num_edges, expected_edges);
+  EXPECT_EQ(torus.num_edges, 42);
 }
 
 }  // namespace

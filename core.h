@@ -223,8 +223,8 @@ namespace topology
         void add_edge(int32_t i, int32_t j) = delete;
     };
 
-    // Tensor product (Cartesian product) utility functions
-    namespace tensor_product_utils
+    // Cartesian product utility functions
+    namespace gproduct_utils
     {
         // Encode vertex pair (g1_id, g2_id) into single ID
         int32_t encode_vertex_pair(int32_t g1_id, int32_t g2_id, size_t g2_size);
@@ -233,13 +233,15 @@ namespace topology
         std::pair<int32_t, int32_t> decode_vertex_pair(int32_t product_id, size_t g2_size);
     }
 
-    // Tensor product (Cartesian product) of two graphs
-    // (u1,v1) connects to (u2,v2) iff:
+    // Cartesian product of two graphs
+    // Vertex set: |V(G1 ⊗ G2)| = |V(G1)| × |V(G2)| (scalar product)
+    // Edge set: |E(G1 ⊗ G2)| = |V(G1)| × |E(G2)| + |E(G1)| × |V(G2)|
+    // Edge rule: (u1,v1) connects to (u2,v2) iff:
     // - u1 = u2 AND v1 connects to v2 in H, OR
     // - u1 connects to u2 in G AND v1 = v2
-    Graph tensor_product(const Graph &g1, const Graph &g2);
+    Graph gproduct(const Graph &g1, const Graph &g2);
 
-    // Operator overload for tensor product
+    // Operator overload for Cartesian product
     Graph operator*(const Graph &g1, const Graph &g2);
 
 } // namespace topology
