@@ -17,8 +17,8 @@ namespace topology
 
     struct EdgeProperties
     {
-        std::string latency;
-        std::string bandwidth;
+        double latency;
+        double bandwidth;
     };
 
     struct GraphProperties
@@ -128,10 +128,10 @@ namespace topology
     {
     public:
         // Default constructor
-        Graph() : diameter(*this), num_vertices(*this), num_edges(*this), vertices(*this), edges(*this) {}
+        Graph();
 
         // Copy constructor
-        Graph(const BaseGraph &other) : BaseGraph(other), diameter(*this), num_vertices(*this), num_edges(*this), vertices(*this), edges(*this) {}
+        Graph(const BaseGraph &other);
 
         // Assignment operator
         Graph &operator=(const BaseGraph &other)

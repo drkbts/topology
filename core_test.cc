@@ -164,6 +164,14 @@ TEST_F(GraphTest, EdgesProxy) {
   EXPECT_EQ(edges[2].second, 1);
 }
 
+TEST_F(GraphTest, GraphName) {
+  // Test that generic graph has correct name
+  EXPECT_EQ(graph_[boost::graph_bundle].name, "Generic");
+  
+  Graph g;
+  EXPECT_EQ(g[boost::graph_bundle].name, "Generic");
+}
+
 }  // namespace
 
 // URing Tests
@@ -231,7 +239,11 @@ TEST_F(URingTest, URingDiameter) {
   EXPECT_EQ(ring5.diameter, 2);
 }
 
-
+TEST_F(URingTest, GraphName) {
+  // Test that URing has correct name
+  URing ring(3);
+  EXPECT_EQ(ring[boost::graph_bundle].name, "URing");
+}
 
 TEST_F(URingTest, AddVertexAndEdgeDisabled) {
   URing ring(3);
