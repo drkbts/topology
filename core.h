@@ -199,6 +199,30 @@ namespace topology
         void add_edge(int32_t i, int32_t j) = delete;
     };
 
+    // UMesh - Unidirectional Mesh topology (1D linear chain without wrap-around)
+    class UMesh : public Graph
+    {
+    public:
+        // Constructor: creates a unidirectional mesh with N vertices
+        // N=1: single vertex with no edges
+        // N>1: vertices "0","1",...,"N-1" connected in chain: 0→1→2→...→(N-1)
+        explicit UMesh(size_t N);
+
+        // Get the size of the mesh
+        size_t GetMeshSize() const;
+
+    protected:
+        // Override diameter calculation for mesh topology
+        int getDiameter() const override;
+
+    private:
+        size_t mesh_size_;
+
+        // Disable add_vertex and add_edge for UMesh - mesh structure is fixed
+        void add_vertex(int32_t id) = delete;
+        void add_edge(int32_t i, int32_t j) = delete;
+    };
+
 } // namespace topology
 
 #endif // TOPOLOGY_CORE_H_

@@ -9,7 +9,7 @@ This library provides a high-level interface for working with network topologies
 ## Features
 
 - **Generic Graph Class**: A flexible graph implementation with integer vertex IDs
-- **Specialized Topologies**: Pre-built topology classes like `URing` for unidirectional rings
+- **Specialized Topologies**: Pre-built topology classes like `URing` for unidirectional rings and `UMesh` for linear chains
 - **Proxy Access Patterns**: Convenient access to graph properties using proxy objects
 - **Property Support**: Built-in support for vertex, edge, and graph properties
 - **Type Safety**: Compile-time prevention of invalid operations on specialized topologies
@@ -37,6 +37,14 @@ Specialized topology for unidirectional rings:
 - Connects them in a ring: 0→1→2→...→(N-1)→0
 - Prevents modification after construction (disabled `add_vertex`/`add_edge`)
 - Optimized diameter calculation: floor(N/2)
+
+### UMesh Class
+Specialized topology for unidirectional linear chains (1D mesh):
+- Constructor takes mesh size N
+- Creates vertices 0, 1, ..., N-1
+- Connects them in a linear chain: 0→1→2→...→(N-1) (no wrap-around)
+- Prevents modification after construction (disabled `add_vertex`/`add_edge`)
+- Optimized diameter calculation: N-1
 
 ## Data Structures
 
@@ -98,6 +106,18 @@ std::cout << "Diameter: " << ring.diameter << std::endl;  // floor(5/2) = 2
 // ring.add_edge(0, 10); // Compilation error
 ```
 
+### Creating a Unidirectional Mesh (Linear Chain)
+```cpp
+UMesh mesh(5);  // Creates linear chain with vertices 0→1→2→3→4
+
+std::cout << "Mesh size: " << mesh.GetMeshSize() << std::endl;
+std::cout << "Diameter: " << mesh.diameter << std::endl;  // N-1 = 4
+
+// These operations are disabled at compile time:
+// mesh.add_vertex(10);  // Compilation error
+// mesh.add_edge(0, 10); // Compilation error
+```
+
 ## Building
 
 This project uses Bazel for building:
@@ -116,6 +136,7 @@ The library includes comprehensive tests using Google Test framework:
 - Graph creation and manipulation
 - Proxy property access
 - URing topology behavior
+- UMesh topology behavior
 - Diameter calculations
 - Type safety enforcement
 

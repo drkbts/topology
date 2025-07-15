@@ -213,4 +213,51 @@ namespace topology
         return static_cast<int>(ring_size_ / 2); // Diameter is floor(N/2) for ring
     }
 
+    // UMesh implementation
+
+    UMesh::UMesh(size_t N) : mesh_size_(N)
+    {
+        if (N == 0)
+        {
+            throw std::invalid_argument("Mesh size must be positive");
+        }
+
+        // Set graph name
+        (*this)[boost::graph_bundle].name = "UMesh";
+
+        // Add vertices with integer ids 0, 1, ..., N-1
+        for (size_t i = 0; i < N; ++i)
+        {
+            Graph::add_vertex(static_cast<int32_t>(i));
+        }
+
+        // Add edges to form a linear chain: 0→1→2→...→(N-1)
+        // Special case: N=1 has no edges
+        if (N > 1)
+        {
+            for (size_t i = 0; i < N - 1; ++i)
+            {
+                Graph::add_edge(static_cast<int32_t>(i), static_cast<int32_t>(i + 1));
+            }
+        }
+    }
+
+    size_t UMesh::GetMeshSize() const
+    {
+        return mesh_size_;
+    }
+
+    int UMesh::getDiameter() const
+    {
+        if (mesh_size_ == 0)
+        {
+            return -1; // Empty mesh
+        }
+        if (mesh_size_ == 1)
+        {
+            return 0; // Single vertex
+        }
+        return static_cast<int>(mesh_size_ - 1); // Diameter is N-1 for linear chain
+    }
+
 } // namespace topology

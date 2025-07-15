@@ -259,4 +259,91 @@ TEST_F(URingTest, AddVertexAndEdgeDisabled) {
 }
 
 }  // namespace
+
+// UMesh Tests
+namespace {
+
+class UMeshTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    // Fresh mesh for each test
+  }
+};
+
+TEST_F(UMeshTest, InvalidMeshSize) {
+  EXPECT_THROW(UMesh(0), std::invalid_argument);
+}
+
+TEST_F(UMeshTest, MeshSize1) {
+  UMesh mesh(1);
+  
+  EXPECT_EQ(boost::num_vertices(mesh), 1);
+  EXPECT_EQ(boost::num_edges(mesh), 0);
+  EXPECT_EQ(mesh.GetMeshSize(), 1);
+  
+  // Test proxy patterns
+  EXPECT_EQ(mesh.num_vertices, 1);
+  EXPECT_EQ(mesh.num_edges, 0);
+  
+  // Check vertex id is 0
+  auto [vi, vi_end] = boost::vertices(mesh);
+  EXPECT_EQ(mesh[*vi].id, 0);
+}
+
+TEST_F(UMeshTest, MeshSize3) {
+  UMesh mesh(3);
+  
+  EXPECT_EQ(boost::num_vertices(mesh), 3);
+  EXPECT_EQ(boost::num_edges(mesh), 2);
+  EXPECT_EQ(mesh.GetMeshSize(), 3);
+  
+  // Test proxy patterns
+  EXPECT_EQ(mesh.num_vertices, 3);
+  EXPECT_EQ(mesh.num_edges, 2);
+  
+  // Check vertex ids are 0, 1, 2
+  std::set<int32_t> ids;
+  auto [vi, vi_end] = boost::vertices(mesh);
+  for (auto v_it = vi; v_it != vi_end; ++v_it) {
+    ids.insert(mesh[*v_it].id);
+  }
+  EXPECT_EQ(ids.size(), 3);
+  EXPECT_EQ(ids.count(0), 1);
+  EXPECT_EQ(ids.count(1), 1);
+  EXPECT_EQ(ids.count(2), 1);
+}
+
+TEST_F(UMeshTest, UMeshDiameter) {
+  // Mesh of size 1 has diameter 0
+  UMesh mesh1(1);
+  EXPECT_EQ(mesh1.diameter, 0);
+  
+  // Mesh of size 3 has diameter 2 (0→1→2, distance = 2)
+  UMesh mesh3(3);
+  EXPECT_EQ(mesh3.diameter, 2);
+  
+  // Mesh of size 5 has diameter 4 (0→1→2→3→4, distance = 4)
+  UMesh mesh5(5);
+  EXPECT_EQ(mesh5.diameter, 4);
+}
+
+TEST_F(UMeshTest, GraphName) {
+  // Test that UMesh has correct name
+  UMesh mesh(3);
+  EXPECT_EQ(mesh[boost::graph_bundle].name, "UMesh");
+}
+
+TEST_F(UMeshTest, AddVertexAndEdgeDisabled) {
+  UMesh mesh(3);
+  
+  // The following should not compile due to deleted methods:
+  // mesh.add_vertex(10);  // Would cause compile error
+  // mesh.add_edge(0, 10); // Would cause compile error
+  
+  // Just test that we can create and use the mesh
+  EXPECT_EQ(mesh.num_vertices, 3);
+  EXPECT_EQ(mesh.num_edges, 2);
+}
+
+}  // namespace
 }  // namespace topology
