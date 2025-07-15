@@ -346,4 +346,177 @@ TEST_F(UMeshTest, AddVertexAndEdgeDisabled) {
 }
 
 }  // namespace
+
+// Tensor Product Tests
+namespace {
+
+class TensorProductTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    // Fresh setup for each test
+  }
+};
+
+TEST_F(TensorProductTest, UtilityFunctions) {
+  using namespace topology::tensor_product_utils;
+  
+  // Test encode/decode vertex pairs
+  EXPECT_EQ(encode_vertex_pair(0, 0, 3), 0);
+  EXPECT_EQ(encode_vertex_pair(0, 1, 3), 1);
+  EXPECT_EQ(encode_vertex_pair(0, 2, 3), 2);
+  EXPECT_EQ(encode_vertex_pair(1, 0, 3), 3);
+  EXPECT_EQ(encode_vertex_pair(1, 1, 3), 4);
+  EXPECT_EQ(encode_vertex_pair(1, 2, 3), 5);
+  
+  // Test decode
+  auto [g1_id, g2_id] = decode_vertex_pair(4, 3);
+  EXPECT_EQ(g1_id, 1);
+  EXPECT_EQ(g2_id, 1);
+  
+  auto [g1_id2, g2_id2] = decode_vertex_pair(5, 3);
+  EXPECT_EQ(g1_id2, 1);
+  EXPECT_EQ(g2_id2, 2);
+}
+
+TEST_F(TensorProductTest, SingleVertexGraphs) {
+  Graph g1, g2;
+  g1.add_vertex(0);
+  g2.add_vertex(0);
+  
+  Graph product = tensor_product(g1, g2);
+  
+  EXPECT_EQ(product.num_vertices, 1);
+  EXPECT_EQ(product.num_edges, 0);
+  EXPECT_EQ(product[boost::graph_bundle].name, "Generic ⊗ Generic");
+}
+
+TEST_F(TensorProductTest, TwoVertexPaths) {
+  // G: 0→1
+  Graph g1;
+  g1.add_vertex(0);
+  g1.add_vertex(1);
+  g1.add_edge(0, 1);
+  
+  // H: 0→1
+  Graph g2;
+  g2.add_vertex(0);
+  g2.add_vertex(1);
+  g2.add_edge(0, 1);
+  
+  Graph product = tensor_product(g1, g2);
+  
+  // Should have 4 vertices: (0,0), (0,1), (1,0), (1,1)
+  EXPECT_EQ(product.num_vertices, 4);
+  
+  // Should have 4 edges:
+  // From G dimension: (0,0)→(1,0), (0,1)→(1,1)
+  // From H dimension: (0,0)→(0,1), (1,0)→(1,1)
+  EXPECT_EQ(product.num_edges, 4);
+  
+  // Check specific edges exist
+  std::vector<std::pair<int32_t, int32_t>> edges = product.edges;
+  std::set<std::pair<int32_t, int32_t>> edge_set(edges.begin(), edges.end());
+  
+  EXPECT_EQ(edge_set.count({0, 2}), 1);  // (0,0)→(1,0)
+  EXPECT_EQ(edge_set.count({1, 3}), 1);  // (0,1)→(1,1)
+  EXPECT_EQ(edge_set.count({0, 1}), 1);  // (0,0)→(0,1)
+  EXPECT_EQ(edge_set.count({2, 3}), 1);  // (1,0)→(1,1)
+}
+
+TEST_F(TensorProductTest, OperatorOverload) {
+  UMesh mesh1(2);  // 0→1
+  UMesh mesh2(2);  // 0→1
+  
+  Graph product = mesh1 * mesh2;
+  
+  EXPECT_EQ(product.num_vertices, 4);
+  EXPECT_EQ(product.num_edges, 4);
+  EXPECT_EQ(product[boost::graph_bundle].name, "UMesh ⊗ UMesh");
+}
+
+TEST_F(TensorProductTest, RingTimesPath) {
+  URing ring(3);   // 0→1→2→0
+  UMesh path(2);   // 0→1
+  
+  Graph product = tensor_product(ring, path);
+  
+  // Should have 6 vertices: (0,0), (0,1), (1,0), (1,1), (2,0), (2,1)
+  EXPECT_EQ(product.num_vertices, 6);
+  
+  // Ring has 3 edges, path has 1 edge
+  // From ring dimension: 3 edges × 2 vertices = 6 edges
+  // From path dimension: 1 edge × 3 vertices = 3 edges
+  EXPECT_EQ(product.num_edges, 9);
+  
+  EXPECT_EQ(product[boost::graph_bundle].name, "URing ⊗ UMesh");
+}
+
+TEST_F(TensorProductTest, PathTimesPath3x3) {
+  UMesh path1(3);  // 0→1→2
+  UMesh path2(3);  // 0→1→2
+  
+  Graph grid = tensor_product(path1, path2);
+  
+  // Should create a 3×3 grid
+  EXPECT_EQ(grid.num_vertices, 9);
+  
+  // Path1 has 2 edges, path2 has 2 edges
+  // From path1 dimension: 2 edges × 3 vertices = 6 edges
+  // From path2 dimension: 2 edges × 3 vertices = 6 edges
+  EXPECT_EQ(grid.num_edges, 12);
+  
+  // Test a few specific edges (grid structure)
+  std::vector<std::pair<int32_t, int32_t>> edges = grid.edges;
+  std::set<std::pair<int32_t, int32_t>> edge_set(edges.begin(), edges.end());
+  
+  // Horizontal edges: (0,0)→(1,0), (1,0)→(2,0), etc.
+  EXPECT_EQ(edge_set.count({0, 3}), 1);  // (0,0)→(1,0)
+  EXPECT_EQ(edge_set.count({3, 6}), 1);  // (1,0)→(2,0)
+  
+  // Vertical edges: (0,0)→(0,1), (0,1)→(0,2), etc.
+  EXPECT_EQ(edge_set.count({0, 1}), 1);  // (0,0)→(0,1)
+  EXPECT_EQ(edge_set.count({1, 2}), 1);  // (0,1)→(0,2)
+}
+
+TEST_F(TensorProductTest, RingTimesRingTorus) {
+  URing ring1(3);  // 0→1→2→0
+  URing ring2(3);  // 0→1→2→0
+  
+  Graph torus = tensor_product(ring1, ring2);
+  
+  // Should create a 3×3 torus
+  EXPECT_EQ(torus.num_vertices, 9);
+  
+  // Each ring has 3 edges
+  // From ring1 dimension: 3 edges × 3 vertices = 9 edges
+  // From ring2 dimension: 3 edges × 3 vertices = 9 edges
+  EXPECT_EQ(torus.num_edges, 18);
+  
+  EXPECT_EQ(torus[boost::graph_bundle].name, "URing ⊗ URing");
+}
+
+TEST_F(TensorProductTest, AsymmetricProduct) {
+  UMesh path(4);   // 0→1→2→3
+  URing ring(2);   // 0→1→0
+  
+  Graph product = tensor_product(path, ring);
+  
+  EXPECT_EQ(product.num_vertices, 8);
+  
+  // Path has 3 edges, ring has 2 edges
+  // From path dimension: 3 edges × 2 vertices = 6 edges
+  // From ring dimension: 2 edges × 4 vertices = 8 edges
+  EXPECT_EQ(product.num_edges, 14);
+}
+
+TEST_F(TensorProductTest, EmptyGraphHandling) {
+  Graph empty1, empty2;
+  
+  Graph product = tensor_product(empty1, empty2);
+  
+  EXPECT_EQ(product.num_vertices, 0);
+  EXPECT_EQ(product.num_edges, 0);
+}
+
+}  // namespace
 }  // namespace topology

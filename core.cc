@@ -260,4 +260,70 @@ namespace topology
         return static_cast<int>(mesh_size_ - 1); // Diameter is N-1 for linear chain
     }
 
+    // Tensor product utility functions
+    namespace tensor_product_utils
+    {
+        int32_t encode_vertex_pair(int32_t g1_id, int32_t g2_id, size_t g2_size)
+        {
+            return g1_id * static_cast<int32_t>(g2_size) + g2_id;
+        }
+
+        std::pair<int32_t, int32_t> decode_vertex_pair(int32_t product_id, size_t g2_size)
+        {
+            return {product_id / static_cast<int32_t>(g2_size), product_id % static_cast<int32_t>(g2_size)};
+        }
+    }
+
+    // Tensor product implementation
+    Graph tensor_product(const Graph &g1, const Graph &g2)
+    {
+        Graph result;
+        result[boost::graph_bundle].name = g1[boost::graph_bundle].name + " ⊗ " + g2[boost::graph_bundle].name;
+
+        std::vector<int32_t> g1_vertices = g1.vertices;
+        std::vector<int32_t> g2_vertices = g2.vertices;
+
+        // Add all vertex pairs
+        for (int32_t u : g1_vertices)
+        {
+            for (int32_t v : g2_vertices)
+            {
+                int32_t product_id = tensor_product_utils::encode_vertex_pair(u, v, g2_vertices.size());
+                result.add_vertex(product_id);
+            }
+        }
+
+        // Add edges from G dimension (u1 connects to u2, v1 = v2)
+        std::vector<std::pair<int32_t, int32_t>> g1_edges = g1.edges;
+        for (auto [u1, u2] : g1_edges)
+        {
+            for (int32_t v : g2_vertices)
+            {
+                int32_t from_id = tensor_product_utils::encode_vertex_pair(u1, v, g2_vertices.size());
+                int32_t to_id = tensor_product_utils::encode_vertex_pair(u2, v, g2_vertices.size());
+                result.add_edge(from_id, to_id);
+            }
+        }
+
+        // Add edges from H dimension (u1 = u2, v1 connects to v2)
+        std::vector<std::pair<int32_t, int32_t>> g2_edges = g2.edges;
+        for (auto [v1, v2] : g2_edges)
+        {
+            for (int32_t u : g1_vertices)
+            {
+                int32_t from_id = tensor_product_utils::encode_vertex_pair(u, v1, g2_vertices.size());
+                int32_t to_id = tensor_product_utils::encode_vertex_pair(u, v2, g2_vertices.size());
+                result.add_edge(from_id, to_id);
+            }
+        }
+
+        return result;
+    }
+
+    // Operator overload for tensor product
+    Graph operator*(const Graph &g1, const Graph &g2)
+    {
+        return tensor_product(g1, g2);
+    }
+
 } // namespace topology

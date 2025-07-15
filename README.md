@@ -10,6 +10,7 @@ This library provides a high-level interface for working with network topologies
 
 - **Generic Graph Class**: A flexible graph implementation with integer vertex IDs
 - **Specialized Topologies**: Pre-built topology classes like `URing` for unidirectional rings and `UMesh` for linear chains
+- **Tensor Product Operations**: Create complex topologies by combining simpler graphs using Cartesian products
 - **Proxy Access Patterns**: Convenient access to graph properties using proxy objects
 - **Property Support**: Built-in support for vertex, edge, and graph properties
 - **Type Safety**: Compile-time prevention of invalid operations on specialized topologies
@@ -45,6 +46,15 @@ Specialized topology for unidirectional linear chains (1D mesh):
 - Connects them in a linear chain: 0→1→2→...→(N-1) (no wrap-around)
 - Prevents modification after construction (disabled `add_vertex`/`add_edge`)
 - Optimized diameter calculation: N-1
+
+### Tensor Product Operations
+Create complex topologies by combining simpler graphs using Cartesian products:
+- **Function**: `tensor_product(g1, g2)` - Creates the Cartesian product of two graphs
+- **Operator**: `g1 * g2` - Convenient syntax for tensor products
+- **Edge Rule**: `(u₁,v₁)` connects to `(u₂,v₂)` if and only if:
+  - `u₁ = u₂` AND `v₁` connects to `v₂` in the second graph, OR
+  - `u₁` connects to `u₂` in the first graph AND `v₁ = v₂`
+- **Applications**: Create grids, tori, cylinders, and other complex network topologies
 
 ## Data Structures
 
@@ -118,6 +128,53 @@ std::cout << "Diameter: " << mesh.diameter << std::endl;  // N-1 = 4
 // mesh.add_edge(0, 10); // Compilation error
 ```
 
+### Tensor Product Operations
+
+#### Creating a 2D Grid
+```cpp
+UMesh path1(3);  // 0→1→2
+UMesh path2(3);  // 0→1→2
+
+Graph grid = tensor_product(path1, path2);
+// Creates 3×3 grid with 9 vertices and 12 edges
+
+std::cout << "Grid vertices: " << grid.num_vertices << std::endl;  // 9
+std::cout << "Grid edges: " << grid.num_edges << std::endl;        // 12
+```
+
+#### Creating a Torus
+```cpp
+URing ring1(4);  // 0→1→2→3→0
+URing ring2(4);  // 0→1→2→3→0
+
+Graph torus = ring1 * ring2;  // Using operator syntax
+// Creates 4×4 torus with 16 vertices and 32 edges
+
+std::cout << "Torus name: " << torus[boost::graph_bundle].name << std::endl;  // "URing ⊗ URing"
+```
+
+#### Creating a Cylinder
+```cpp
+URing ring(6);   // 0→1→2→3→4→5→0
+UMesh path(4);   // 0→1→2→3
+
+Graph cylinder = tensor_product(ring, path);
+// Creates cylindrical topology with 24 vertices
+
+std::cout << "Cylinder vertices: " << cylinder.num_vertices << std::endl;  // 24
+std::cout << "Cylinder edges: " << cylinder.num_edges << std::endl;        // 39
+```
+
+#### Mixed Topology Products
+```cpp
+// Create complex topologies by combining different base structures
+URing ring(5);
+UMesh mesh(3);
+
+Graph complex = ring * mesh;  // 5×3 cylindrical mesh
+Graph another = tensor_product(mesh, ring);  // 3×5 cylindrical mesh (different orientation)
+```
+
 ## Building
 
 This project uses Bazel for building:
@@ -137,6 +194,7 @@ The library includes comprehensive tests using Google Test framework:
 - Proxy property access
 - URing topology behavior
 - UMesh topology behavior
+- Tensor product operations
 - Diameter calculations
 - Type safety enforcement
 
