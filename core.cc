@@ -48,6 +48,27 @@ namespace topology
         return result;
     }
 
+    // DimensionProxy implementation
+    DimensionProxy::operator size_t() const
+    {
+        // Try to cast to URing first
+        const URing *ring = dynamic_cast<const URing *>(&graph_);
+        if (ring)
+        {
+            return ring->GetDimensionSize();
+        }
+
+        // Try to cast to UMesh
+        const UMesh *mesh = dynamic_cast<const UMesh *>(&graph_);
+        if (mesh)
+        {
+            return mesh->GetDimensionSize();
+        }
+
+        // Not a specialized topology, return 0 or throw
+        return 0;
+    }
+
     // Graph class implementation
 
     Graph::Graph() : diameter(*this), num_vertices(*this), num_edges(*this), vertices(*this), edges(*this)
@@ -167,7 +188,7 @@ namespace topology
 
     // URing implementation
 
-    URing::URing(size_t N) : ring_size_(N)
+    URing::URing(size_t N) : dimension(*this), dimension_(N)
     {
         if (N == 0)
         {
@@ -175,7 +196,7 @@ namespace topology
         }
 
         // Set graph name
-        (*this)[boost::graph_bundle].name = "URing";
+        static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "URing";
 
         // Add vertices with integer ids 0, 1, ..., N-1
         for (size_t i = 0; i < N; ++i)
@@ -195,27 +216,47 @@ namespace topology
         }
     }
 
-    size_t URing::GetRingSize() const
+    size_t URing::GetDimensionSize() const
     {
-        return ring_size_;
+        return dimension_;
     }
 
     int URing::getDiameter() const
     {
-        if (ring_size_ == 0)
+        if (dimension_ == 0)
         {
             return -1; // Empty ring
         }
-        if (ring_size_ == 1)
+        if (dimension_ == 1)
         {
             return 0; // Single vertex
         }
-        return static_cast<int>(ring_size_ / 2); // Diameter is floor(N/2) for ring
+        return static_cast<int>(dimension_ / 2); // Diameter is floor(N/2) for ring
+    }
+
+    void URing::add_vertex(int32_t id)
+    {
+        // Convert to generic graph when modified
+        if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")
+        {
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "Generic";
+        }
+        Graph::add_vertex(id);
+    }
+
+    void URing::add_edge(int32_t i, int32_t j)
+    {
+        // Convert to generic graph when modified
+        if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")
+        {
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "Generic";
+        }
+        Graph::add_edge(i, j);
     }
 
     // UMesh implementation
 
-    UMesh::UMesh(size_t N) : mesh_size_(N)
+    UMesh::UMesh(size_t N) : dimension(*this), dimension_(N)
     {
         if (N == 0)
         {
@@ -223,7 +264,7 @@ namespace topology
         }
 
         // Set graph name
-        (*this)[boost::graph_bundle].name = "UMesh";
+        static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "UMesh";
 
         // Add vertices with integer ids 0, 1, ..., N-1
         for (size_t i = 0; i < N; ++i)
@@ -242,22 +283,42 @@ namespace topology
         }
     }
 
-    size_t UMesh::GetMeshSize() const
+    size_t UMesh::GetDimensionSize() const
     {
-        return mesh_size_;
+        return dimension_;
     }
 
     int UMesh::getDiameter() const
     {
-        if (mesh_size_ == 0)
+        if (dimension_ == 0)
         {
             return -1; // Empty mesh
         }
-        if (mesh_size_ == 1)
+        if (dimension_ == 1)
         {
             return 0; // Single vertex
         }
-        return static_cast<int>(mesh_size_ - 1); // Diameter is N-1 for linear chain
+        return static_cast<int>(dimension_ - 1); // Diameter is N-1 for linear chain
+    }
+
+    void UMesh::add_vertex(int32_t id)
+    {
+        // Convert to generic graph when modified
+        if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")
+        {
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "Generic";
+        }
+        Graph::add_vertex(id);
+    }
+
+    void UMesh::add_edge(int32_t i, int32_t j)
+    {
+        // Convert to generic graph when modified
+        if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")
+        {
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "Generic";
+        }
+        Graph::add_edge(i, j);
     }
 
     // Cartesian product utility functions

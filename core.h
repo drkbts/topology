@@ -141,10 +141,10 @@ namespace topology
         }
 
         // Add vertex with integer id
-        void add_vertex(int32_t id);
+        virtual void add_vertex(int32_t id);
 
         // Add edge between integer vertex ids
-        void add_edge(int32_t i, int32_t j);
+        virtual void add_edge(int32_t i, int32_t j);
 
         // Diameter proxy for g.diameter construct
         DiameterProxy diameter;
@@ -175,6 +175,26 @@ namespace topology
         friend class EdgesProxy;
     };
 
+    // Forward declarations for specialized topologies
+    class URing;
+    class UMesh;
+
+    // Proxy class for dimension access (for specialized topologies)
+    class DimensionProxy
+    {
+    public:
+        DimensionProxy(const Graph &graph) : graph_(graph) {}
+
+        // Implicit conversion to size_t for g.dimension usage
+        operator size_t() const;
+
+        // Assignment is not allowed (read-only property)
+        DimensionProxy &operator=(size_t) = delete;
+
+    private:
+        const Graph &graph_;
+    };
+
     // URing - Unidirectional Ring topology
     class URing : public Graph
     {
@@ -184,19 +204,22 @@ namespace topology
         // N>1: vertices "0","1",...,"N-1" connected in ring: 0→1→2→...→(N-1)→0
         explicit URing(size_t N);
 
+        // Override add_vertex and add_edge to convert to generic graph when modified
+        void add_vertex(int32_t id) override;
+        void add_edge(int32_t i, int32_t j) override;
+
+        // Proxy for g.dimension construct
+        DimensionProxy dimension;
+
         // Get the size of the ring
-        size_t GetRingSize() const;
+        size_t GetDimensionSize() const;
 
     protected:
         // Override diameter calculation for ring topology
         int getDiameter() const override;
 
     private:
-        size_t ring_size_;
-
-        // Disable add_vertex and add_edge for URing - ring structure is fixed
-        void add_vertex(int32_t id) = delete;
-        void add_edge(int32_t i, int32_t j) = delete;
+        size_t dimension_;
     };
 
     // UMesh - Unidirectional Mesh topology (1D linear chain without wrap-around)
@@ -208,19 +231,22 @@ namespace topology
         // N>1: vertices "0","1",...,"N-1" connected in chain: 0→1→2→...→(N-1)
         explicit UMesh(size_t N);
 
+        // Override add_vertex and add_edge to convert to generic graph when modified
+        void add_vertex(int32_t id) override;
+        void add_edge(int32_t i, int32_t j) override;
+
+        // Proxy for g.dimension construct
+        DimensionProxy dimension;
+
         // Get the size of the mesh
-        size_t GetMeshSize() const;
+        size_t GetDimensionSize() const;
 
     protected:
         // Override diameter calculation for mesh topology
         int getDiameter() const override;
 
     private:
-        size_t mesh_size_;
-
-        // Disable add_vertex and add_edge for UMesh - mesh structure is fixed
-        void add_vertex(int32_t id) = delete;
-        void add_edge(int32_t i, int32_t j) = delete;
+        size_t dimension_;
     };
 
     // Cartesian product utility functions

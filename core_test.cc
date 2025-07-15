@@ -193,7 +193,7 @@ TEST_F(URingTest, RingSize1) {
   
   EXPECT_EQ(boost::num_vertices(ring), 1);
   EXPECT_EQ(boost::num_edges(ring), 0);
-  EXPECT_EQ(ring.GetRingSize(), 1);
+  EXPECT_EQ(ring.dimension, 1);
   
   // Test proxy patterns
   EXPECT_EQ(ring.num_vertices, 1);
@@ -209,7 +209,7 @@ TEST_F(URingTest, RingSize3) {
   
   EXPECT_EQ(boost::num_vertices(ring), 3);
   EXPECT_EQ(boost::num_edges(ring), 3);
-  EXPECT_EQ(ring.GetRingSize(), 3);
+  EXPECT_EQ(ring.dimension, 3);
   
   // Test proxy patterns
   EXPECT_EQ(ring.num_vertices, 3);
@@ -245,17 +245,38 @@ TEST_F(URingTest, GraphName) {
   EXPECT_EQ(ring[boost::graph_bundle].name, "URing");
 }
 
-TEST_F(URingTest, AddVertexAndEdgeDisabled) {
+TEST_F(URingTest, AddVertexAndEdgeConvertsToGeneric) {
   URing ring(3);
   
-  // The following should not compile due to deleted methods:
-  // ring.add_vertex(10);  // Would cause compile error
-  // ring.add_edge(0, 10); // Would cause compile error
-  
-  // Verify that the ring structure is preserved
+  // Initially should be URing
+  EXPECT_EQ(ring[boost::graph_bundle].name, "URing");
   EXPECT_EQ(ring.num_vertices, 3);
   EXPECT_EQ(ring.num_edges, 3);
-  EXPECT_EQ(ring.GetRingSize(), 3);
+  EXPECT_EQ(ring.dimension, 3);
+  
+  // Adding vertex should convert to Generic
+  ring.add_vertex(10);
+  EXPECT_EQ(ring[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(ring.num_vertices, 4);  // Should have added the vertex
+  
+  // Create another ring to test edge addition
+  URing ring2(2);
+  EXPECT_EQ(ring2[boost::graph_bundle].name, "URing");
+  
+  // Adding edge should convert to Generic
+  ring2.add_edge(0, 1);  // Add edge between existing vertices
+  EXPECT_EQ(ring2[boost::graph_bundle].name, "Generic");
+}
+
+TEST_F(URingTest, DimensionProxy) {
+  URing ring(5);
+  
+  // Test dimension proxy works
+  size_t dim = ring.dimension;
+  EXPECT_EQ(dim, 5);
+  
+  // Test implicit conversion
+  EXPECT_EQ(ring.dimension, 5);
 }
 
 }  // namespace
@@ -279,7 +300,7 @@ TEST_F(UMeshTest, MeshSize1) {
   
   EXPECT_EQ(boost::num_vertices(mesh), 1);
   EXPECT_EQ(boost::num_edges(mesh), 0);
-  EXPECT_EQ(mesh.GetMeshSize(), 1);
+  EXPECT_EQ(mesh.dimension, 1);
   
   // Test proxy patterns
   EXPECT_EQ(mesh.num_vertices, 1);
@@ -295,7 +316,7 @@ TEST_F(UMeshTest, MeshSize3) {
   
   EXPECT_EQ(boost::num_vertices(mesh), 3);
   EXPECT_EQ(boost::num_edges(mesh), 2);
-  EXPECT_EQ(mesh.GetMeshSize(), 3);
+  EXPECT_EQ(mesh.dimension, 3);
   
   // Test proxy patterns
   EXPECT_EQ(mesh.num_vertices, 3);
@@ -333,16 +354,37 @@ TEST_F(UMeshTest, GraphName) {
   EXPECT_EQ(mesh[boost::graph_bundle].name, "UMesh");
 }
 
-TEST_F(UMeshTest, AddVertexAndEdgeDisabled) {
+TEST_F(UMeshTest, AddVertexAndEdgeConvertsToGeneric) {
   UMesh mesh(3);
   
-  // The following should not compile due to deleted methods:
-  // mesh.add_vertex(10);  // Would cause compile error
-  // mesh.add_edge(0, 10); // Would cause compile error
-  
-  // Just test that we can create and use the mesh
+  // Initially should be UMesh
+  EXPECT_EQ(mesh[boost::graph_bundle].name, "UMesh");
   EXPECT_EQ(mesh.num_vertices, 3);
   EXPECT_EQ(mesh.num_edges, 2);
+  
+  // Adding vertex should convert to Generic
+  mesh.add_vertex(10);
+  EXPECT_EQ(mesh[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(mesh.num_vertices, 4);  // Should have added the vertex
+  
+  // Create another mesh to test edge addition
+  UMesh mesh2(2);
+  EXPECT_EQ(mesh2[boost::graph_bundle].name, "UMesh");
+  
+  // Adding edge should convert to Generic
+  mesh2.add_edge(0, 1);  // Add edge between existing vertices
+  EXPECT_EQ(mesh2[boost::graph_bundle].name, "Generic");
+}
+
+TEST_F(UMeshTest, DimensionProxy) {
+  UMesh mesh(4);
+  
+  // Test dimension proxy works
+  size_t dim = mesh.dimension;
+  EXPECT_EQ(dim, 4);
+  
+  // Test implicit conversion
+  EXPECT_EQ(mesh.dimension, 4);
 }
 
 }  // namespace

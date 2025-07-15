@@ -13,7 +13,7 @@ This library provides a high-level interface for working with network topologies
 - **Cartesian Product Operations**: Create complex topologies by combining simpler graphs using Cartesian products
 - **Proxy Access Patterns**: Convenient access to graph properties using proxy objects
 - **Property Support**: Built-in support for vertex, edge, and graph properties
-- **Type Safety**: Compile-time prevention of invalid operations on specialized topologies
+- **Flexible Modification**: Specialized topologies can be modified, automatically converting to generic graphs
 
 ## Core Components
 
@@ -30,13 +30,14 @@ Access graph information through convenient proxy objects:
 - `g.num_edges` - Number of edges  
 - `g.vertices` - Vector of all vertex IDs
 - `g.edges` - Vector of all edge pairs (source, destination)
+- `g.dimension` - Dimension size for specialized topologies (URing, UMesh)
 
 ### URing Class
 Specialized topology for unidirectional rings:
 - Constructor takes ring size N
 - Creates vertices 0, 1, ..., N-1
 - Connects them in a ring: 0→1→2→...→(N-1)→0
-- Prevents modification after construction (disabled `add_vertex`/`add_edge`)
+- Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 - Optimized diameter calculation: floor(N/2)
 
 ### UMesh Class
@@ -44,7 +45,7 @@ Specialized topology for unidirectional linear chains (1D mesh):
 - Constructor takes mesh size N
 - Creates vertices 0, 1, ..., N-1
 - Connects them in a linear chain: 0→1→2→...→(N-1) (no wrap-around)
-- Prevents modification after construction (disabled `add_vertex`/`add_edge`)
+- Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 - Optimized diameter calculation: N-1
 
 ### Cartesian Product Operations
@@ -110,24 +111,24 @@ std::vector<std::pair<int32_t, int32_t>> edges = g.edges;
 ```cpp
 URing ring(5);  // Creates ring with vertices 0,1,2,3,4
 
-std::cout << "Ring size: " << ring.GetRingSize() << std::endl;
-std::cout << "Diameter: " << ring.diameter << std::endl;  // floor(5/2) = 2
+std::cout << "Ring size: " << ring.dimension << std::endl;  // 5
+std::cout << "Diameter: " << ring.diameter << std::endl;    // floor(5/2) = 2
 
-// These operations are disabled at compile time:
-// ring.add_vertex(10);  // Compilation error
-// ring.add_edge(0, 10); // Compilation error
+// Modification is allowed but converts to generic graph:
+ring.add_vertex(10);
+std::cout << "Graph name: " << ring[boost::graph_bundle].name << std::endl;  // "Generic"
 ```
 
 ### Creating a Unidirectional Mesh (Linear Chain)
 ```cpp
 UMesh mesh(5);  // Creates linear chain with vertices 0→1→2→3→4
 
-std::cout << "Mesh size: " << mesh.GetMeshSize() << std::endl;
-std::cout << "Diameter: " << mesh.diameter << std::endl;  // N-1 = 4
+std::cout << "Mesh size: " << mesh.dimension << std::endl;  // 5
+std::cout << "Diameter: " << mesh.diameter << std::endl;    // N-1 = 4
 
-// These operations are disabled at compile time:
-// mesh.add_vertex(10);  // Compilation error
-// mesh.add_edge(0, 10); // Compilation error
+// Modification is allowed but converts to generic graph:
+mesh.add_vertex(10);
+std::cout << "Graph name: " << mesh[boost::graph_bundle].name << std::endl;  // "Generic"
 ```
 
 ### Cartesian Product Operations
