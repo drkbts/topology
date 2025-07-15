@@ -1,92 +1,176 @@
 #include "core.h"
-
-#include <memory>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/graph_traits.hpp>
+#include <boost/graph/breadth_first_search.hpp>
 #include <unordered_map>
-#include <unordered_set>
+#include <string>
+#include <vector>
+#include <queue>
+#include <limits>
 #include <algorithm>
+#include <thread>
 
 namespace topology {
 
-class Graph::Impl {
- public:
-  std::unordered_map<std::string, std::unordered_set<std::string>> adjacency_list_;
-};
+// DiameterProxy implementation
 
-Graph::Graph() : impl_(std::make_unique<Impl>()) {}
-
-Graph::~Graph() = default;
-
-void Graph::AddVertex(const std::string& id) {
-  impl_->adjacency_list_[id];  // Creates empty set if not exists
+DiameterProxy::operator int() const {
+  // Need to cast to Graph to call the virtual getDiameter method
+  const Graph* graph_ptr = static_cast<const Graph*>(&graph_);
+  return graph_ptr->getDiameter();
 }
 
-void Graph::AddEdge(const std::string& from, const std::string& to) {
-  AddVertex(from);
-  AddVertex(to);
-  impl_->adjacency_list_[from].insert(to);
-}
-
-void Graph::RemoveVertex(const std::string& id) {
-  // Remove all edges pointing to this vertex
-  for (auto& [vertex, neighbors] : impl_->adjacency_list_) {
-    neighbors.erase(id);
+// VerticesProxy implementation
+VerticesProxy::operator std::vector<int32_t>() const {
+  std::vector<int32_t> result;
+  auto vertices_range = boost::vertices(graph_);
+  for (auto v_iter = vertices_range.first; v_iter != vertices_range.second; ++v_iter) {
+    result.push_back(graph_[*v_iter].id);
   }
-  // Remove the vertex itself
-  impl_->adjacency_list_.erase(id);
+  return result;
 }
 
-void Graph::RemoveEdge(const std::string& from, const std::string& to) {
-  auto it = impl_->adjacency_list_.find(from);
-  if (it != impl_->adjacency_list_.end()) {
-    it->second.erase(to);
+// EdgesProxy implementation
+EdgesProxy::operator std::vector<std::pair<int32_t, int32_t>>() const {
+  std::vector<std::pair<int32_t, int32_t>> result;
+  auto edges_range = boost::edges(graph_);
+  for (auto e_iter = edges_range.first; e_iter != edges_range.second; ++e_iter) {
+    auto src = boost::source(*e_iter, graph_);
+    auto dst = boost::target(*e_iter, graph_);
+    result.push_back({graph_[src].id, graph_[dst].id});
   }
+  return result;
 }
 
-bool Graph::HasVertex(const std::string& id) const {
-  return impl_->adjacency_list_.find(id) != impl_->adjacency_list_.end();
+// Graph class implementation
+
+void Graph::add_vertex(int32_t id) {
+  // Add vertex to boost graph
+  BaseGraph& bg = static_cast<BaseGraph&>(*this);
+  auto v = boost::add_vertex(bg);
+  
+  // Set the vertex id property
+  (*this)[v].id = id;
 }
 
-bool Graph::HasEdge(const std::string& from, const std::string& to) const {
-  auto it = impl_->adjacency_list_.find(from);
-  if (it == impl_->adjacency_list_.end()) {
-    return false;
-  }
-  return it->second.find(to) != it->second.end();
-}
-
-std::vector<std::string> Graph::GetVertices() const {
-  std::vector<std::string> vertices;
-  vertices.reserve(impl_->adjacency_list_.size());
-  for (const auto& [vertex, _] : impl_->adjacency_list_) {
-    vertices.push_back(vertex);
-  }
-  return vertices;
-}
-
-std::vector<std::string> Graph::GetNeighbors(const std::string& id) const {
-  auto it = impl_->adjacency_list_.find(id);
-  if (it == impl_->adjacency_list_.end()) {
-    return {};
+void Graph::add_edge(int32_t i, int32_t j) {
+  // Find vertices with given ids
+  BaseGraph& bg = static_cast<BaseGraph&>(*this);
+  boost::graph_traits<BaseGraph>::vertex_descriptor v_i = boost::graph_traits<BaseGraph>::null_vertex();
+  boost::graph_traits<BaseGraph>::vertex_descriptor v_j = boost::graph_traits<BaseGraph>::null_vertex();
+  
+  // Find vertices by id
+  auto [vi, vi_end] = boost::vertices(bg);
+  for (auto v_it = vi; v_it != vi_end; ++v_it) {
+    if ((*this)[*v_it].id == i) {
+      v_i = *v_it;
+    }
+    if ((*this)[*v_it].id == j) {
+      v_j = *v_it;
+    }
   }
   
-  std::vector<std::string> neighbors;
-  neighbors.reserve(it->second.size());
-  for (const auto& neighbor : it->second) {
-    neighbors.push_back(neighbor);
+  // Add edge if both vertices exist
+  if (v_i != boost::graph_traits<BaseGraph>::null_vertex() && 
+      v_j != boost::graph_traits<BaseGraph>::null_vertex()) {
+    boost::add_edge(v_i, v_j, bg);
   }
-  return neighbors;
 }
 
-size_t Graph::GetVertexCount() const {
-  return impl_->adjacency_list_.size();
+int Graph::getDiameter() const {
+  return getDiameter_impl(*this);
 }
 
-size_t Graph::GetEdgeCount() const {
-  size_t count = 0;
-  for (const auto& [_, neighbors] : impl_->adjacency_list_) {
-    count += neighbors.size();
+int Graph::getDiameter_impl(const BaseGraph& g) {
+  
+  // Empty graph has no diameter
+  if (boost::num_vertices(g) == 0) {
+    return -1;
   }
-  return count;
+  
+  // Single vertex has diameter 0
+  if (boost::num_vertices(g) == 1) {
+    return 0;
+  }
+  
+  int max_distance = 0;
+  
+  // For each vertex, find shortest distances to all other vertices
+  auto [vi, vi_end] = boost::vertices(g);
+  for (auto source = vi; source != vi_end; ++source) {
+    // BFS to find shortest distances from source
+    std::vector<int> distances(boost::num_vertices(g), -1);
+    std::queue<boost::graph_traits<BaseGraph>::vertex_descriptor> queue;
+    
+    distances[*source] = 0;
+    queue.push(*source);
+    
+    while (!queue.empty()) {
+      auto current = queue.front();
+      queue.pop();
+      
+      auto [ei, ei_end] = boost::out_edges(current, g);
+      for (auto edge = ei; edge != ei_end; ++edge) {
+        auto target = boost::target(*edge, g);
+        
+        if (distances[target] == -1) {  // Not visited
+          distances[target] = distances[current] + 1;
+          queue.push(target);
+        }
+      }
+    }
+    
+    // Find maximum distance from this source
+    for (size_t i = 0; i < distances.size(); ++i) {
+      if (distances[i] == -1) {
+        // Graph is disconnected
+        return -1;
+      }
+      max_distance = std::max(max_distance, distances[i]);
+    }
+  }
+  
+  return max_distance;
 }
+
+// URing implementation
+
+URing::URing(size_t N) : ring_size_(N) {
+  if (N == 0) {
+    throw std::invalid_argument("Ring size must be positive");
+  }
+  
+  // Add vertices with integer ids 0, 1, ..., N-1
+  for (size_t i = 0; i < N; ++i) {
+    Graph::add_vertex(static_cast<int32_t>(i));
+  }
+  
+  // Add edges to form a ring: 0→1→2→...→(N-1)→0
+  // Special case: N=1 has no edges
+  if (N > 1) {
+    for (size_t i = 0; i < N; ++i) {
+      size_t next = (i + 1) % N;
+      Graph::add_edge(static_cast<int32_t>(i), static_cast<int32_t>(next));
+    }
+  }
+}
+
+
+
+size_t URing::GetRingSize() const {
+  return ring_size_;
+}
+
+int URing::getDiameter() const {
+  if (ring_size_ == 0) {
+    return -1;  // Empty ring
+  }
+  if (ring_size_ == 1) {
+    return 0;   // Single vertex
+  }
+  return static_cast<int>(ring_size_ / 2);  // Diameter is floor(N/2) for ring
+}
+
+
 
 }  // namespace topology
