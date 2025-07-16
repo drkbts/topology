@@ -31,6 +31,7 @@ Access graph information through convenient proxy objects:
 - `g.vertices` - Vector of all vertex IDs
 - `g.edges` - Vector of all edge pairs (source, destination)
 - `g.dimension` - Dimension size for specialized topologies (URing, BRing, UMesh, BMesh) or multidimensional access for BGrid
+- `g.num_dimensions` - Number of dimensions (1 for specialized topologies, varies for BGrid, 0 for generic graphs)
 
 ### URing Class
 Specialized topology for unidirectional rings:
@@ -85,12 +86,13 @@ Specialized topology for multidimensional bidirectional grids (Cartesian product
 - Edge count: calculated using iterative Cartesian product formulas
 - Diameter: sum of individual mesh diameters (∑(Ni - 1))
 - Multidimensional proxy access: `grid.dimensions[i]`, `grid.dimensions.size()` (returns filtered, sorted dimensions)
+- Number of dimensions: `grid.num_dimensions` (returns count of filtered dimensions)
 - Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 
 ### Cartesian Product Operations
 Create complex topologies by combining simpler graphs using Cartesian products:
 - **Function**: `gproduct(g1, g2)` - Creates the Cartesian product of two graphs
-- **Operator**: `g1 * g2` - Convenient syntax for Cartesian products
+  - **Operator**: `g1 * g2` - Convenient syntax for Cartesian products
   - **Vertex Count**: `|V(G₁ ⊗ G₂)| = |V(G₁)| × |V(G₂)|` (scalar product formula)
   - **Edge Count**: `|E(G₁ ⊗ G₂)| = |V(G₁)| × |E(G₂)| + |E(G₁)| × |V(G₂)|`
   - **Edge Rule**: `(u₁,v₁)` connects to `(u₂,v₂)` if and only if:
