@@ -409,7 +409,9 @@ namespace topology
         size_t calculateGridEdges(const std::vector<size_t>& dims) const;
     };
 
-    // Type alias for convenience
+    // Type aliases for convenience
+    using Ring = BRing;
+    using Mesh = BMesh;
     using Grid = BGrid;
 
     // Cartesian product utility functions

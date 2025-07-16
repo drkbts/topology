@@ -1481,4 +1481,101 @@ TEST_F(CartesianProductTest, ScalarProductFormula) {
 }
 
 }  // namespace
+
+// Type Alias Tests
+namespace {
+
+class TypeAliasTest : public ::testing::Test {
+ protected:
+   void SetUp() override {
+     // Fresh objects for each test
+   }
+};
+
+TEST_F(TypeAliasTest, RingAlias) {
+  // Test that Ring is equivalent to BRing
+  Ring ring(4);
+  BRing bring(4);
+  
+  EXPECT_EQ(ring.num_vertices, bring.num_vertices);
+  EXPECT_EQ(ring.num_edges, bring.num_edges);
+  EXPECT_EQ(ring.diameter, bring.diameter);
+  EXPECT_EQ(ring.dimension, bring.dimension);
+  EXPECT_EQ(ring.num_dimensions, bring.num_dimensions);
+  
+  // Both should have BRing name
+  EXPECT_EQ(ring[boost::graph_bundle].name, "BRing");
+  EXPECT_EQ(bring[boost::graph_bundle].name, "BRing");
+}
+
+TEST_F(TypeAliasTest, MeshAlias) {
+  // Test that Mesh is equivalent to BMesh
+  Mesh mesh(5);
+  BMesh bmesh(5);
+  
+  EXPECT_EQ(mesh.num_vertices, bmesh.num_vertices);
+  EXPECT_EQ(mesh.num_edges, bmesh.num_edges);
+  EXPECT_EQ(mesh.diameter, bmesh.diameter);
+  EXPECT_EQ(mesh.dimension, bmesh.dimension);
+  EXPECT_EQ(mesh.num_dimensions, bmesh.num_dimensions);
+  
+  // Both should have BMesh name
+  EXPECT_EQ(mesh[boost::graph_bundle].name, "BMesh");
+  EXPECT_EQ(bmesh[boost::graph_bundle].name, "BMesh");
+}
+
+TEST_F(TypeAliasTest, GridAlias) {
+  // Test that Grid is equivalent to BGrid
+  Grid grid({3, 4});
+  BGrid bgrid({3, 4});
+  
+  EXPECT_EQ(grid.num_vertices, bgrid.num_vertices);
+  EXPECT_EQ(grid.num_edges, bgrid.num_edges);
+  EXPECT_EQ(grid.diameter, bgrid.diameter);
+  EXPECT_EQ(grid.num_dimensions, bgrid.num_dimensions);
+  
+  // Both should have same BGrid name
+  EXPECT_EQ(grid[boost::graph_bundle].name, bgrid[boost::graph_bundle].name);
+}
+
+TEST_F(TypeAliasTest, CartesianProductWithAliases) {
+  // Test cartesian products work with aliases
+  Ring ring(3);
+  Mesh mesh(3);
+  Grid grid({2, 2});
+  
+  // Ring × Mesh
+  Graph ring_mesh = gproduct(ring, mesh);
+  EXPECT_EQ(ring_mesh.num_vertices, 9);  // 3×3 = 9
+  EXPECT_EQ(ring_mesh[boost::graph_bundle].name, "BRing ⊗ BMesh");
+  
+  // Grid × Ring
+  Graph grid_ring = gproduct(grid, ring);
+  EXPECT_EQ(grid_ring.num_vertices, 12);  // 4×3 = 12
+  EXPECT_EQ(grid_ring[boost::graph_bundle].name, "BGrid[2,2] ⊗ BRing");
+}
+
+TEST_F(TypeAliasTest, ModificationConvertsToGeneric) {
+  // Test that aliases behave like their original classes when modified
+  Ring ring(3);
+  Mesh mesh(3);
+  Grid grid({2, 3});
+  
+  // Initially have correct names
+  EXPECT_EQ(ring[boost::graph_bundle].name, "BRing");
+  EXPECT_EQ(mesh[boost::graph_bundle].name, "BMesh");
+  EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[3,2]");
+  
+  // After modification, convert to Generic
+  ring.add_vertex(10);
+  mesh.add_vertex(10);
+  grid.add_vertex(10);
+  
+  EXPECT_EQ(ring[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(mesh[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(grid[boost::graph_bundle].name, "Generic");
+}
+
+}  // namespace
+
 }  // namespace topology

@@ -41,7 +41,7 @@ Specialized topology for unidirectional rings:
 - Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 - Optimized diameter calculation: floor(N/2)
 
-### BRing Class
+### BRing Class (alias: Ring)
 Specialized topology for bidirectional rings:
 - Constructor takes ring size N
 - Creates vertices 0, 1, ..., N-1
@@ -58,7 +58,7 @@ Specialized topology for unidirectional linear chains (1D mesh):
 - Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 - Optimized diameter calculation: N-1
 
-### BMesh Class
+### BMesh Class (alias: Mesh)
 Specialized topology for bidirectional linear chains (1D mesh):
 - Constructor takes mesh size N
 - Creates vertices 0, 1, ..., N-1
@@ -163,6 +163,8 @@ std::cout << "Graph name: " << ring[boost::graph_bundle].name << std::endl;  // 
 ### Creating a Bidirectional Ring
 ```cpp
 BRing ring(5);  // Creates bidirectional ring with vertices 0↔1↔2↔3↔4↔0
+// Or using the type alias:
+Ring ring_alias(5);  // Same as BRing(5)
 
 std::cout << "Ring size: " << ring.dimension << std::endl;   // 5
 std::cout << "Vertices: " << ring.num_vertices << std::endl;  // 5
@@ -189,6 +191,8 @@ std::cout << "Graph name: " << mesh[boost::graph_bundle].name << std::endl;  // 
 ### Creating a Bidirectional Mesh (Linear Chain)
 ```cpp
 BMesh mesh(5);  // Creates bidirectional chain with vertices 0↔1↔2↔3↔4
+// Or using the type alias:
+Mesh mesh_alias(5);  // Same as BMesh(5)
 
 std::cout << "Mesh size: " << mesh.dimension << std::endl;  // 5
 std::cout << "Vertices: " << mesh.num_vertices << std::endl;  // 5
@@ -300,6 +304,8 @@ std::cout << "Torus name: " << torus[boost::graph_bundle].name << std::endl;  //
 ```cpp
 BRing ring1(4);  // 0↔1↔2↔3↔0 (bidirectional)
 BRing ring2(4);  // 0↔1↔2↔3↔0 (bidirectional)
+// Or using the Ring alias:
+Ring ring3(4), ring4(4);
 
 Graph btorus = ring1 * ring2;  // Bidirectional torus
 // Creates 4×4 bidirectional torus with 16 vertices and 64 edges
@@ -354,6 +360,8 @@ std::cout << "Star edges: " << star.num_edges << std::endl;        // 4
 ```cpp
 BMesh bmesh(3);  // Bidirectional chain 0↔1↔2 (3 vertices, 4 edges)
 UMesh umesh(3);  // Unidirectional chain 0→1→2 (3 vertices, 2 edges)
+// Or using aliases:
+Mesh bmesh_alias(3);
 
 Graph hybrid = gproduct(bmesh, umesh);  // Mixed bidirectional/unidirectional product
 // Result: 3×3 = 9 vertices, 3×2 + 4×3 = 6 + 12 = 18 edges
