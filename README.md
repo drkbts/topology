@@ -78,12 +78,12 @@ Specialized topology for one-point graphs (single vertex, no edges):
 Create complex topologies by combining simpler graphs using Cartesian products:
 - **Function**: `gproduct(g1, g2)` - Creates the Cartesian product of two graphs
 - **Operator**: `g1 * g2` - Convenient syntax for Cartesian products
-- **Vertex Count**: `|V(G₁ ⊗ G₂)| = |V(G₁)| × |V(G₂)|` (scalar product formula)
-- **Edge Count**: `|E(G₁ ⊗ G₂)| = |V(G₁)| × |E(G₂)| + |E(G₁)| × |V(G₂)|`
-- **Edge Rule**: `(u₁,v₁)` connects to `(u₂,v₂)` if and only if:
-  - `u₁ = u₂` AND `v₁` connects to `v₂` in the second graph, OR
-  - `u₁` connects to `u₂` in the first graph AND `v₁ = v₂`
-- **Applications**: Create grids, tori, cylinders, and other complex network topologies
+  - **Vertex Count**: `|V(G₁ ⊗ G₂)| = |V(G₁)| × |V(G₂)|` (scalar product formula)
+  - **Edge Count**: `|E(G₁ ⊗ G₂)| = |V(G₁)| × |E(G₂)| + |E(G₁)| × |V(G₂)|`
+  - **Edge Rule**: `(u₁,v₁)` connects to `(u₂,v₂)` if and only if:
+    - `u₁ = u₂` AND `v₁` connects to `v₂` in the second graph, OR
+    - `u₁` connects to `u₂` in the first graph AND `v₁ = v₂`
+  - **Applications**: Create grids, tori, cylinders, and other complex network topologies
 
 ## Data Structures
 
