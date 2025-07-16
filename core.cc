@@ -111,6 +111,21 @@ namespace topology
             return dimensions;
         }
         
+        // Check if it's a BTorus (multiple dimensions possible)
+        if (name.substr(0, 7) == "BTorus[") {
+            // Count commas in the name to determine dimensions
+            // BTorus[3,4,5] has 3 dimensions, BTorus[5] has 1 dimension, BTorus[] has 1 dimension
+            if (name == "BTorus[]") {
+                return 1; // Special case for empty BTorus (OPG)
+            }
+            
+            size_t dimensions = 1; // At least one dimension
+            for (char c : name) {
+                if (c == ',') dimensions++;
+            }
+            return dimensions;
+        }
+        
         // For other specialized topologies, return 1 (single dimension)
         if (name == "URing" || name == "BRing" || name == "UMesh" || name == "BMesh" || name == "OPG") {
             return 1;
@@ -482,11 +497,15 @@ namespace topology
     }
 
     // MultiDimensionProxy implementation
-    MultiDimensionProxy::MultiDimensionProxy(const BGrid &grid) : grid_(grid) {}
+    MultiDimensionProxy::MultiDimensionProxy(const BGrid &grid) : ptr_(&grid), is_torus_(false) {}
+    
+    MultiDimensionProxy::MultiDimensionProxy(const BTorus &torus) : ptr_(&torus), is_torus_(true) {}
 
     size_t MultiDimensionProxy::operator[](size_t index) const
     {
-        const auto& dims = grid_.GetDimensions();
+        const auto& dims = is_torus_ ? 
+            static_cast<const BTorus*>(ptr_)->GetDimensions() :
+            static_cast<const BGrid*>(ptr_)->GetDimensions();
         if (index >= dims.size()) {
             throw std::out_of_range("Dimension index out of range");
         }
@@ -495,12 +514,16 @@ namespace topology
 
     const std::vector<size_t>& MultiDimensionProxy::get() const
     {
-        return grid_.GetDimensions();
+        return is_torus_ ? 
+            static_cast<const BTorus*>(ptr_)->GetDimensions() :
+            static_cast<const BGrid*>(ptr_)->GetDimensions();
     }
 
     size_t MultiDimensionProxy::size() const
     {
-        return grid_.GetNumDimensions();
+        return is_torus_ ? 
+            static_cast<const BTorus*>(ptr_)->GetNumDimensions() :
+            static_cast<const BGrid*>(ptr_)->GetNumDimensions();
     }
 
     // BGrid implementation
@@ -686,6 +709,203 @@ namespace topology
     }
 
     void BGrid::add_edge(int32_t i, int32_t j)
+    {
+        // Convert to generic graph when modified
+        if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")
+        {
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "Generic";
+        }
+        Graph::add_edge(i, j);
+    }
+
+    // BTorus implementation
+    BTorus::BTorus(const std::vector<size_t>& dimensions) : dimensions(*this)
+    {
+        // Validate all dimensions are positive
+        for (size_t dim : dimensions) {
+            if (dim == 0) {
+                throw std::invalid_argument("All torus dimensions must be positive");
+            }
+        }
+
+        // Sort dimensions in descending order and filter out dimensions equal to 1
+        std::vector<size_t> filtered_dims;
+        for (size_t dim : dimensions) {
+            if (dim > 1) {
+                filtered_dims.push_back(dim);
+            }
+        }
+        
+        // Sort in descending order
+        std::sort(filtered_dims.begin(), filtered_dims.end(), std::greater<size_t>());
+        
+        // If empty after filtering, report as length 1 with entry 1
+        if (filtered_dims.empty()) {
+            dimensions_ = {1};
+        } else {
+            dimensions_ = filtered_dims;
+        }
+
+        if (dimensions_.empty() || (dimensions_.size() == 1 && dimensions_[0] == 1)) {
+            // Case 1: Empty list → OPG
+            OPG opg;
+            // Copy the OPG structure to this BTorus
+            for (auto [vi, vi_end] = boost::vertices(opg); vi != vi_end; ++vi) {
+                Graph::add_vertex(opg[*vi].id);
+            }
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "BTorus[]";
+
+        } else if (dimensions_.size() == 1) {
+            // Case 2: Single dimension → BRing
+            BRing ring(dimensions_[0]);
+            // Copy the BRing structure to this BTorus
+            for (auto [vi, vi_end] = boost::vertices(ring); vi != vi_end; ++vi) {
+                Graph::add_vertex(ring[*vi].id);
+            }
+            for (auto [ei, ei_end] = boost::edges(ring); ei != ei_end; ++ei) {
+                auto src = boost::source(*ei, ring);
+                auto tgt = boost::target(*ei, ring);
+                Graph::add_edge(ring[src].id, ring[tgt].id);
+            }
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "BTorus[" + std::to_string(dimensions_[0]) + "]";
+
+        } else {
+            // Case 3: Multiple dimensions → Left associative gproduct of BRing's
+            buildTorus(dimensions_);
+
+            // Build name: BTorus[d1,d2,d3,...] using filtered and sorted dimensions
+            std::string name = "BTorus[";
+            for (size_t i = 0; i < dimensions_.size(); ++i) {
+                if (i > 0) name += ",";
+                name += std::to_string(dimensions_[i]);
+            }
+            name += "]";
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = name;
+        }
+    }
+
+    void BTorus::buildTorus(const std::vector<size_t>& dims)
+    {
+        if (dims.size() < 2) return;
+
+        // Build the torus using recursive gproducts
+        // Create a helper function to compute the left-associative product
+        std::function<void(Graph&, const std::vector<size_t>&, size_t)> build_product = 
+            [&](Graph& result, const std::vector<size_t>& dimensions, size_t index) {
+                if (index == 0) {
+                    // Base case: copy first BRing to result
+                    BRing ring(dimensions[0]);
+                    for (auto [vi, vi_end] = boost::vertices(ring); vi != vi_end; ++vi) {
+                        result.add_vertex(ring[*vi].id);
+                    }
+                    for (auto [ei, ei_end] = boost::edges(ring); ei != ei_end; ++ei) {
+                        auto src = boost::source(*ei, ring);
+                        auto tgt = boost::target(*ei, ring);
+                        result.add_edge(ring[src].id, ring[tgt].id);
+                    }
+                    return;
+                }
+                
+                // Recursive case: compute product with previous results
+                Graph prev_result;
+                build_product(prev_result, dimensions, index - 1);
+                
+                BRing current_ring(dimensions[index]);
+                Graph product_result = gproduct(prev_result, static_cast<Graph&>(current_ring));
+                
+                // Copy product_result to result
+                for (auto [vi, vi_end] = boost::vertices(product_result); vi != vi_end; ++vi) {
+                    result.add_vertex(product_result[*vi].id);
+                }
+                for (auto [ei, ei_end] = boost::edges(product_result); ei != ei_end; ++ei) {
+                    auto src = boost::source(*ei, product_result);
+                    auto tgt = boost::target(*ei, product_result);
+                    result.add_edge(product_result[src].id, product_result[tgt].id);
+                }
+            };
+
+        // Build the final torus
+        Graph final_result;
+        build_product(final_result, dims, dims.size() - 1);
+
+        // Copy to this BTorus
+        for (auto [vi, vi_end] = boost::vertices(final_result); vi != vi_end; ++vi) {
+            Graph::add_vertex(final_result[*vi].id);
+        }
+        for (auto [ei, ei_end] = boost::edges(final_result); ei != ei_end; ++ei) {
+            auto src = boost::source(*ei, final_result);
+            auto tgt = boost::target(*ei, final_result);
+            Graph::add_edge(final_result[src].id, final_result[tgt].id);
+        }
+    }
+
+    size_t BTorus::calculateTorusEdges(const std::vector<size_t>& dims) const
+    {
+        if (dims.empty()) return 0;
+        if (dims.size() == 1) {
+            return 2 * dims[0]; // BRing edge count (N rings have N edges each way = 2N total)
+        }
+
+        // Calculate iteratively using gproduct formula
+        size_t vertices1 = dims[0];
+        size_t edges1 = 2 * dims[0]; // BRing has 2*N edges
+
+        for (size_t i = 1; i < dims.size(); ++i) {
+            size_t vertices2 = dims[i];
+            size_t edges2 = 2 * dims[i]; // BRing has 2*N edges
+
+            // Apply gproduct formula: |E(G1 ⊗ G2)| = |V(G1)| × |E(G2)| + |E(G1)| × |V(G2)|
+            size_t new_edges = vertices1 * edges2 + edges1 * vertices2;
+            size_t new_vertices = vertices1 * vertices2;
+
+            vertices1 = new_vertices;
+            edges1 = new_edges;
+        }
+
+        return edges1;
+    }
+
+    const std::vector<size_t>& BTorus::GetDimensions() const
+    {
+        return dimensions_;
+    }
+
+    size_t BTorus::GetNumDimensions() const
+    {
+        return dimensions_.size();
+    }
+
+    int BTorus::getDiameter() const
+    {
+        if (dimensions_.empty() || (dimensions_.size() == 1 && dimensions_[0] == 1)) {
+            // OPG case
+            return 0;
+        }
+        
+        if (dimensions_.size() == 1) {
+            // Single BRing case: diameter is floor(N/2)
+            return static_cast<int>(dimensions_[0] / 2);
+        }
+        
+        // Multiple dimensions: sum of individual ring diameters
+        int total_diameter = 0;
+        for (size_t dim : dimensions_) {
+            total_diameter += static_cast<int>(dim / 2); // floor(dim/2)
+        }
+        return total_diameter;
+    }
+
+    void BTorus::add_vertex(int32_t id)
+    {
+        // Convert to generic graph when modified
+        if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")
+        {
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "Generic";
+        }
+        Graph::add_vertex(id);
+    }
+
+    void BTorus::add_edge(int32_t i, int32_t j)
     {
         // Convert to generic graph when modified
         if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")

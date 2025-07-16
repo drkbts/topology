@@ -201,6 +201,7 @@ namespace topology
     class UMesh;
     class BMesh;
     class BGrid;
+    class BTorus;
     class OPG;
 
     // Proxy class for dimension access (for specialized topologies)
@@ -219,11 +220,12 @@ namespace topology
         const Graph &graph_;
     };
 
-    // Proxy class for multidimensional access (for BGrid)
+    // Proxy class for multidimensional access (for BGrid and BTorus)
     class MultiDimensionProxy
     {
     public:
         MultiDimensionProxy(const BGrid &grid);
+        MultiDimensionProxy(const BTorus &torus);
 
         // Access individual dimensions
         size_t operator[](size_t index) const;
@@ -238,7 +240,8 @@ namespace topology
         MultiDimensionProxy &operator=(const std::vector<size_t>&) = delete;
 
     private:
-        const BGrid &grid_;
+        const void* ptr_;
+        bool is_torus_;
     };
 
     // URing - Unidirectional Ring topology
@@ -409,10 +412,46 @@ namespace topology
         size_t calculateGridEdges(const std::vector<size_t>& dims) const;
     };
 
+    // BTorus - Multidimensional Bidirectional Torus topology (Cartesian products of BRing)
+    class BTorus : public Graph
+    {
+    public:
+        // Constructor: creates torus from vector of positive dimensions
+        // Empty vector {} → OPG (single vertex)
+        // Single dimension {N} → BRing(N)
+        // Multiple dimensions {N1, N2, ...} → Left associative gproduct of BRing's
+        explicit BTorus(const std::vector<size_t>& dimensions);
+
+        // Override add_vertex and add_edge to convert to generic graph when modified
+        void add_vertex(int32_t id) override;
+        void add_edge(int32_t i, int32_t j) override;
+
+        // Dimension access
+        const std::vector<size_t>& GetDimensions() const;
+        size_t GetNumDimensions() const;
+
+        // Multi-dimensional proxy access
+        MultiDimensionProxy dimensions;
+
+    protected:
+        // Override diameter calculation for torus topology
+        int getDiameter() const override;
+
+    private:
+        std::vector<size_t> dimensions_;
+
+        // Helper method to construct the torus using left-associative gproduct
+        void buildTorus(const std::vector<size_t>& dims);
+
+        // Helper method to calculate edge count for multidimensional tori
+        size_t calculateTorusEdges(const std::vector<size_t>& dims) const;
+    };
+
     // Type aliases for convenience
     using Ring = BRing;
     using Mesh = BMesh;
     using Grid = BGrid;
+    using Torus = BTorus;
 
     // Cartesian product utility functions
     namespace gproduct_utils

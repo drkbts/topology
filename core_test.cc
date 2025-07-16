@@ -1555,25 +1555,249 @@ TEST_F(TypeAliasTest, CartesianProductWithAliases) {
   EXPECT_EQ(grid_ring[boost::graph_bundle].name, "BGrid[2,2] ⊗ BRing");
 }
 
+TEST_F(TypeAliasTest, TorusAlias) {
+  // Test that Torus is equivalent to BTorus
+  Torus torus({3, 4});
+  BTorus btorus({3, 4});
+  
+  EXPECT_EQ(torus.num_vertices, btorus.num_vertices);
+  EXPECT_EQ(torus.num_edges, btorus.num_edges);
+  EXPECT_EQ(torus.diameter, btorus.diameter);
+  EXPECT_EQ(torus.num_dimensions, btorus.num_dimensions);
+  
+  // Both should have BTorus name
+  EXPECT_EQ(torus[boost::graph_bundle].name, btorus[boost::graph_bundle].name);
+}
+
 TEST_F(TypeAliasTest, ModificationConvertsToGeneric) {
   // Test that aliases behave like their original classes when modified
   Ring ring(3);
   Mesh mesh(3);
   Grid grid({2, 3});
+  Torus torus({2, 3});
   
   // Initially have correct names
   EXPECT_EQ(ring[boost::graph_bundle].name, "BRing");
   EXPECT_EQ(mesh[boost::graph_bundle].name, "BMesh");
   EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[3,2]");
+  EXPECT_EQ(torus[boost::graph_bundle].name, "BTorus[3,2]");
   
   // After modification, convert to Generic
   ring.add_vertex(10);
   mesh.add_vertex(10);
   grid.add_vertex(10);
+  torus.add_vertex(10);
   
   EXPECT_EQ(ring[boost::graph_bundle].name, "Generic");
   EXPECT_EQ(mesh[boost::graph_bundle].name, "Generic");
   EXPECT_EQ(grid[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(torus[boost::graph_bundle].name, "Generic");
+}
+
+}  // namespace
+
+// BTorus Tests
+namespace {
+
+class BTorusTest : public ::testing::Test {
+ protected:
+   void SetUp() override {
+     // Fresh BTorus for each test
+   }
+};
+
+TEST_F(BTorusTest, InvalidTorusSize) {
+  EXPECT_THROW(BTorus({0}), std::invalid_argument);
+  EXPECT_THROW(BTorus({3, 0, 4}), std::invalid_argument);
+}
+
+TEST_F(BTorusTest, EmptyDimensions) {
+  BTorus torus({});
+  
+  EXPECT_EQ(torus.num_vertices, 1);  // Should be OPG
+  EXPECT_EQ(torus.num_edges, 0);
+  EXPECT_EQ(torus.diameter, 0);
+  EXPECT_EQ(torus.num_dimensions, 1);
+  EXPECT_EQ(torus[boost::graph_bundle].name, "BTorus[]");
+}
+
+TEST_F(BTorusTest, AllOnesFiltered) {
+  BTorus torus({1, 1, 1});
+  
+  EXPECT_EQ(torus.num_vertices, 1);  // Should be OPG after filtering
+  EXPECT_EQ(torus.num_edges, 0);
+  EXPECT_EQ(torus.diameter, 0);
+  EXPECT_EQ(torus.num_dimensions, 1);
+  EXPECT_EQ(torus[boost::graph_bundle].name, "BTorus[]");
+}
+
+TEST_F(BTorusTest, SingleDimension) {
+  BTorus torus({5});
+  
+  EXPECT_EQ(torus.num_vertices, 5);
+  EXPECT_EQ(torus.num_edges, 10);  // BRing(5) has 2*5 = 10 edges
+  EXPECT_EQ(torus.diameter, 2);    // floor(5/2) = 2
+  EXPECT_EQ(torus.num_dimensions, 1);
+  EXPECT_EQ(torus[boost::graph_bundle].name, "BTorus[5]");
+  
+  // Should behave like BRing(5)
+  BRing ring(5);
+  EXPECT_EQ(torus.num_vertices, ring.num_vertices);
+  EXPECT_EQ(torus.num_edges, ring.num_edges);
+  EXPECT_EQ(torus.diameter, ring.diameter);
+}
+
+TEST_F(BTorusTest, TwoDimensions) {
+  BTorus torus({3, 4});
+  
+  // Should create 4×3 torus (sorted in descending order)
+  EXPECT_EQ(torus.num_vertices, 12);   // 4×3 = 12
+  EXPECT_EQ(torus.num_edges, 48);      // 4×6 + 8×3 = 24 + 24 = 48
+  EXPECT_EQ(torus.diameter, 3);        // floor(4/2) + floor(3/2) = 2 + 1 = 3
+  EXPECT_EQ(torus.num_dimensions, 2);
+  EXPECT_EQ(torus[boost::graph_bundle].name, "BTorus[4,3]");
+  
+  // Test dimensions access
+  EXPECT_EQ(torus.dimensions[0], 4);
+  EXPECT_EQ(torus.dimensions[1], 3);
+  EXPECT_EQ(torus.dimensions.size(), 2);
+}
+
+TEST_F(BTorusTest, ThreeDimensions) {
+  BTorus torus({2, 3, 4});
+  
+  // Should create 4×3×2 torus (sorted in descending order)
+  EXPECT_EQ(torus.num_vertices, 24);   // 4×3×2 = 24
+  EXPECT_EQ(torus.diameter, 4);        // floor(4/2) + floor(3/2) + floor(2/2) = 2 + 1 + 1 = 4
+  EXPECT_EQ(torus.num_dimensions, 3);
+  EXPECT_EQ(torus[boost::graph_bundle].name, "BTorus[4,3,2]");
+  
+  // Test dimensions access
+  EXPECT_EQ(torus.dimensions[0], 4);
+  EXPECT_EQ(torus.dimensions[1], 3);
+  EXPECT_EQ(torus.dimensions[2], 2);
+  EXPECT_EQ(torus.dimensions.size(), 3);
+}
+
+TEST_F(BTorusTest, FilteringAndSorting) {
+  BTorus torus({3, 1, 5, 1, 2});  // Should filter out 1s and sort: {5, 3, 2}
+  
+  EXPECT_EQ(torus.num_vertices, 30);   // 5×3×2 = 30
+  EXPECT_EQ(torus.num_dimensions, 3);
+  EXPECT_EQ(torus[boost::graph_bundle].name, "BTorus[5,3,2]");
+  
+  // Test dimensions access
+  EXPECT_EQ(torus.dimensions[0], 5);
+  EXPECT_EQ(torus.dimensions[1], 3);
+  EXPECT_EQ(torus.dimensions[2], 2);
+}
+
+TEST_F(BTorusTest, CompareWithBGrid) {
+  // Compare BTorus and BGrid with same dimensions
+  BTorus torus({3, 4});
+  BGrid grid({3, 4});
+  
+  // Same number of vertices
+  EXPECT_EQ(torus.num_vertices, grid.num_vertices);
+  
+  // BTorus should have more edges (torus has wrap-around, grid doesn't)
+  EXPECT_GT(torus.num_edges, grid.num_edges);
+  
+  // BTorus should have smaller diameter (due to wrap-around)
+  EXPECT_LT(torus.diameter, grid.diameter);
+}
+
+TEST_F(BTorusTest, ModificationConvertsToGeneric) {
+  BTorus torus({3, 4});
+  
+  // Initially should be BTorus
+  EXPECT_EQ(torus[boost::graph_bundle].name, "BTorus[4,3]");
+  EXPECT_EQ(torus.num_vertices, 12);
+  EXPECT_EQ(torus.num_edges, 48);
+  
+  // Adding vertex should convert to Generic
+  torus.add_vertex(100);
+  EXPECT_EQ(torus[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(torus.num_vertices, 13);  // Should have added the vertex
+  
+  // Create another torus to test edge addition
+  BTorus torus2({2, 3});
+  EXPECT_EQ(torus2[boost::graph_bundle].name, "BTorus[3,2]");
+  
+  // Adding edge should convert to Generic
+  torus2.add_edge(0, 0);  // Add self-loop
+  EXPECT_EQ(torus2[boost::graph_bundle].name, "Generic");
+}
+
+TEST_F(BTorusTest, CartesianProductWithOPG) {
+  BTorus torus({3, 4});  // 4×3 torus
+  OPG opg;
+  
+  // BTorus × OPG should preserve BTorus structure (identity property)
+  Graph product1 = gproduct(torus, opg);
+  EXPECT_EQ(product1.num_vertices, 12);  // 12×1 = 12
+  EXPECT_EQ(product1.num_edges, 48);     // 12×0 + 48×1 = 48
+  
+  // OPG × BTorus should also preserve BTorus structure
+  Graph product2 = gproduct(opg, torus);
+  EXPECT_EQ(product2.num_vertices, 12);  // 1×12 = 12
+  EXPECT_EQ(product2.num_edges, 48);     // 1×48 + 0×12 = 48
+  
+  // Test names
+  EXPECT_EQ(product1[boost::graph_bundle].name, "BTorus[4,3] ⊗ OPG");
+  EXPECT_EQ(product2[boost::graph_bundle].name, "OPG ⊗ BTorus[4,3]");
+}
+
+TEST_F(BTorusTest, CartesianProductWithBRing) {
+  BTorus torus({2, 3});  // 3×2 torus
+  BRing ring(4);         // 4-ring
+  
+  // BTorus × BRing
+  Graph product = gproduct(torus, ring);
+  EXPECT_EQ(product.num_vertices, 24);   // 6×4 = 24
+  
+  // Cartesian product formula: |E(G1 ⊗ G2)| = |V(G1)| × |E(G2)| + |E(G1)| × |V(G2)|
+  // torus has 6 vertices and 24 edges, ring has 4 vertices and 8 edges  
+  // Expected edges: 6×8 + 24×4 = 48 + 96 = 144
+  EXPECT_EQ(product.num_edges, 144);
+  
+  EXPECT_EQ(product[boost::graph_bundle].name, "BTorus[3,2] ⊗ BRing");
+}
+
+TEST_F(BTorusTest, TorusAlias) {
+  // Test that Torus is equivalent to BTorus
+  Torus torus({3, 4});
+  BTorus btorus({3, 4});
+  
+  EXPECT_EQ(torus.num_vertices, btorus.num_vertices);
+  EXPECT_EQ(torus.num_edges, btorus.num_edges);
+  EXPECT_EQ(torus.diameter, btorus.diameter);
+  EXPECT_EQ(torus.num_dimensions, btorus.num_dimensions);
+  
+  // Both should have BTorus name
+  EXPECT_EQ(torus[boost::graph_bundle].name, btorus[boost::graph_bundle].name);
+}
+
+TEST_F(BTorusTest, DimensionProxyAccess) {
+  BTorus torus({2, 5, 3});  // Should sort to {5, 3, 2}
+  
+  // Test all proxy patterns work
+  EXPECT_EQ(torus.num_vertices, 30);    // 5×3×2 = 30
+  EXPECT_EQ(torus.num_dimensions, 3);
+  EXPECT_EQ(torus.diameter, 4);         // floor(5/2) + floor(3/2) + floor(2/2) = 2+1+1 = 4
+  
+  // Test dimensions proxy
+  EXPECT_EQ(torus.dimensions.size(), 3);
+  EXPECT_EQ(torus.dimensions[0], 5);
+  EXPECT_EQ(torus.dimensions[1], 3);
+  EXPECT_EQ(torus.dimensions[2], 2);
+  
+  // Test get method
+  auto dims = torus.dimensions.get();
+  EXPECT_EQ(dims.size(), 3);
+  EXPECT_EQ(dims[0], 5);
+  EXPECT_EQ(dims[1], 3);
+  EXPECT_EQ(dims[2], 2);
 }
 
 }  // namespace

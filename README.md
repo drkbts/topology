@@ -9,7 +9,7 @@ This library provides a high-level interface for working with network topologies
 ## Features
 
 - **Generic Graph Class**: A flexible graph implementation with integer vertex IDs
-- **Specialized Topologies**: Pre-built topology classes like `URing` for unidirectional rings, `BRing` for bidirectional rings, `UMesh` for unidirectional linear chains, `BMesh` for bidirectional linear chains, and `BGrid` for multidimensional bidirectional grids
+- **Specialized Topologies**: Pre-built topology classes like `URing` for unidirectional rings, `BRing` for bidirectional rings, `UMesh` for unidirectional linear chains, `BMesh` for bidirectional linear chains, `BGrid` for multidimensional bidirectional grids, and `BTorus` for multidimensional bidirectional tori
 - **Cartesian Product Operations**: Create complex topologies by combining simpler graphs using Cartesian products
 - **Proxy Access Patterns**: Convenient access to graph properties using proxy objects
 - **Property Support**: Built-in support for vertex, edge, and graph properties
@@ -87,6 +87,20 @@ Specialized topology for multidimensional bidirectional grids (Cartesian product
 - Diameter: sum of individual mesh diameters (∑(Ni - 1))
 - Multidimensional proxy access: `grid.dimensions[i]`, `grid.dimensions.size()` (returns filtered, sorted dimensions)
 - Number of dimensions: `grid.num_dimensions` (returns count of filtered dimensions)
+- Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
+
+### BTorus Class (alias: Torus)
+Specialized topology for multidimensional bidirectional tori (Cartesian products of BRing):
+- Constructor takes vector of positive dimensions `{N1, N2, ..., Nk}`
+- **Preprocessing**: Dimensions are sorted in descending order, dimensions equal to 1 are filtered out
+- Empty vector `{}` or all dimensions = 1 → Creates OPG (single vertex), reports dimension `{1}`
+- Single filtered dimension `{N}` → Creates BRing(N)
+- Multiple filtered dimensions → Left associative gproduct: `((BRing(N1) ⊗ BRing(N2)) ⊗ ...)`
+- Vertex count: product of all filtered dimensions (N1 × N2 × ... × Nk)
+- Edge count: calculated using iterative Cartesian product formulas
+- Diameter: sum of individual ring diameters (∑⌊Ni/2⌋)
+- Multidimensional proxy access: `torus.dimensions[i]`, `torus.dimensions.size()` (returns filtered, sorted dimensions)
+- Number of dimensions: `torus.num_dimensions` (returns count of filtered dimensions)
 - Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 
 ### Cartesian Product Operations
@@ -273,6 +287,65 @@ rect.add_vertex(100);
 std::cout << "Graph name: " << rect[boost::graph_bundle].name << std::endl;  // "Generic"
 ```
 
+### Creating Multidimensional Tori
+```cpp
+// 0D torus (point) - using type alias Torus
+Torus point({});         // Equivalent to OPG (Torus is alias for BTorus)
+std::cout << "Vertices: " << point.num_vertices << std::endl;  // 1
+std::cout << "Edges: " << point.num_edges << std::endl;        // 0
+std::cout << "Dimensions: " << point.dimensions.size() << std::endl; // 0
+
+// 1D torus (ring) - mixing BTorus and Torus usage
+Torus ring({5});         // Equivalent to BRing(5)
+std::cout << "Vertices: " << ring.num_vertices << std::endl;   // 5
+std::cout << "Edges: " << ring.num_edges << std::endl;         // 10
+std::cout << "Diameter: " << ring.diameter << std::endl;       // 2
+
+// 2D torus (traditional torus)
+BTorus torus2d({3, 4});  // Sorted to {4, 3} - 4×3 bidirectional torus
+std::cout << "Vertices: " << torus2d.num_vertices << std::endl;   // 12
+std::cout << "Edges: " << torus2d.num_edges << std::endl;         // 48
+std::cout << "Diameter: " << torus2d.diameter << std::endl;       // 3 (floor(4/2) + floor(3/2) = 2+1)
+std::cout << "Dimensions: " << torus2d.dimensions[0] << "×" << torus2d.dimensions[1] << std::endl; // 4×3
+std::cout << "Name: " << torus2d[boost::graph_bundle].name << std::endl;  // "BTorus[4,3]"
+
+// 3D torus (3-torus)
+BTorus torus3d({2, 3, 4}); // 4×3×2 bidirectional torus
+std::cout << "Vertices: " << torus3d.num_vertices << std::endl;    // 24
+std::cout << "Diameter: " << torus3d.diameter << std::endl;        // 4 (floor(4/2)+floor(3/2)+floor(2/2) = 2+1+1)
+
+// Access individual dimensions
+for (size_t i = 0; i < torus3d.dimensions.size(); ++i) {
+    std::cout << "Dim " << i << ": " << torus3d.dimensions[i] << std::endl;
+}
+
+// 4D torus (hypertorus)
+BTorus hypertorus({2, 2, 2, 2});  // 2^4 vertices
+std::cout << "Vertices: " << hypertorus.num_vertices << std::endl;  // 16
+std::cout << "Diameter: " << hypertorus.diameter << std::endl;      // 4
+
+// Dimension filtering and sorting examples
+BTorus filtered({3, 1, 5, 1, 2});  // Filters out 1s, sorts: {5, 3, 2}
+std::cout << "Filtered dimensions: ";
+for (size_t i = 0; i < filtered.dimensions.size(); ++i) {
+    std::cout << filtered.dimensions[i];
+    if (i < filtered.dimensions.size() - 1) std::cout << "×";
+}
+std::cout << std::endl;  // "5×3×2"
+
+// Compare with BGrid - same vertices, more edges, smaller diameter
+BGrid grid_compare({3, 4});
+BTorus torus_compare({3, 4});
+std::cout << "Grid edges: " << grid_compare.num_edges << std::endl;    // Grid has fewer edges
+std::cout << "Torus edges: " << torus_compare.num_edges << std::endl;  // Torus has more edges (wrap-around)
+std::cout << "Grid diameter: " << grid_compare.diameter << std::endl;  // Grid has larger diameter
+std::cout << "Torus diameter: " << torus_compare.diameter << std::endl; // Torus has smaller diameter
+
+// Modification converts to generic graph
+torus2d.add_vertex(100);
+std::cout << "Graph name: " << torus2d[boost::graph_bundle].name << std::endl;  // "Generic"
+```
+
 ### Cartesian Product Operations
 
 #### Creating a 2D Grid
@@ -390,6 +463,34 @@ std::cout << "Same vertices: " << same_grid.num_vertices << std::endl;  // 9
 std::cout << "Same edges: " << same_grid.num_edges << std::endl;        // 24
 ```
 
+#### BTorus/Torus in Cartesian Products
+```cpp
+Torus torus2d({3, 3});  // 2D bidirectional torus (9 vertices, 36 edges) - using Torus alias
+URing ring(4);          // Unidirectional ring (4 vertices, 4 edges)
+
+Graph toroidal3d = gproduct(torus2d, ring);  // Creates 3D toroidal structure
+// Result: 9×4 = 36 vertices, 9×4 + 36×4 = 36 + 144 = 180 edges
+
+std::cout << "Toroidal 3D vertices: " << toroidal3d.num_vertices << std::endl;  // 36
+std::cout << "Toroidal 3D edges: " << toroidal3d.num_edges << std::endl;        // 180
+std::cout << "Toroidal 3D name: " << toroidal3d[boost::graph_bundle].name << std::endl;  // "BTorus[3,3] ⊗ URing"
+
+// BTorus can also be used with OPG (identity)
+Graph same_torus = gproduct(torus2d, point);  // Results in same structure as torus2d
+std::cout << "Same torus vertices: " << same_torus.num_vertices << std::endl;  // 9
+std::cout << "Same torus edges: " << same_torus.num_edges << std::endl;        // 36
+
+// Compare grid vs torus in products
+Grid grid_compare({2, 3});
+BTorus torus_compare({2, 3});
+BMesh mesh(4);
+
+Graph grid_mesh = gproduct(grid_compare, mesh);
+Graph torus_mesh = gproduct(torus_compare, mesh);
+std::cout << "Grid×Mesh edges: " << grid_mesh.num_edges << std::endl;   // Fewer edges
+std::cout << "Torus×Mesh edges: " << torus_mesh.num_edges << std::endl; // More edges (torus has wrap-around)
+```
+
 ## Building
 
 This project uses Bazel for building:
@@ -412,6 +513,7 @@ The library includes comprehensive tests using Google Test framework:
 - UMesh topology behavior
 - BMesh topology behavior
 - BGrid topology behavior
+- BTorus topology behavior
 - OPG topology behavior
 - Cartesian product operations
 - Diameter calculations
