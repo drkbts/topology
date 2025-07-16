@@ -9,7 +9,7 @@ This library provides a high-level interface for working with network topologies
 ## Features
 
 - **Generic Graph Class**: A flexible graph implementation with integer vertex IDs
-- **Specialized Topologies**: Pre-built topology classes like `URing` for unidirectional rings, `BRing` for bidirectional rings, `UMesh` for unidirectional linear chains, and `BMesh` for bidirectional linear chains
+- **Specialized Topologies**: Pre-built topology classes like `URing` for unidirectional rings, `BRing` for bidirectional rings, `UMesh` for unidirectional linear chains, `BMesh` for bidirectional linear chains, and `BGrid` for multidimensional bidirectional grids
 - **Cartesian Product Operations**: Create complex topologies by combining simpler graphs using Cartesian products
 - **Proxy Access Patterns**: Convenient access to graph properties using proxy objects
 - **Property Support**: Built-in support for vertex, edge, and graph properties
@@ -30,7 +30,7 @@ Access graph information through convenient proxy objects:
 - `g.num_edges` - Number of edges  
 - `g.vertices` - Vector of all vertex IDs
 - `g.edges` - Vector of all edge pairs (source, destination)
-- `g.dimension` - Dimension size for specialized topologies (URing, BRing, UMesh, BMesh)
+- `g.dimension` - Dimension size for specialized topologies (URing, BRing, UMesh, BMesh) or multidimensional access for BGrid
 
 ### URing Class
 Specialized topology for unidirectional rings:
@@ -73,6 +73,19 @@ Specialized topology for one-point graphs (single vertex, no edges):
 - Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 - Optimized diameter calculation: 0 (single vertex has zero diameter)
 - Dimension proxy returns 1 (representing the single vertex)
+
+### BGrid Class (alias: Grid)
+Specialized topology for multidimensional bidirectional grids (Cartesian products of BMesh):
+- Constructor takes vector of positive dimensions `{N1, N2, ..., Nk}`
+- **Preprocessing**: Dimensions are sorted in descending order, dimensions equal to 1 are filtered out
+- Empty vector `{}` or all dimensions = 1 → Creates OPG (single vertex), reports dimension `{1}`
+- Single filtered dimension `{N}` → Creates BMesh(N)
+- Multiple filtered dimensions → Left associative gproduct: `((BMesh(N1) ⊗ BMesh(N2)) ⊗ ...)`
+- Vertex count: product of all filtered dimensions (N1 × N2 × ... × Nk)
+- Edge count: calculated using iterative Cartesian product formulas
+- Diameter: sum of individual mesh diameters (∑(Ni - 1))
+- Multidimensional proxy access: `grid.dimensions[i]`, `grid.dimensions.size()` (returns filtered, sorted dimensions)
+- Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 
 ### Cartesian Product Operations
 Create complex topologies by combining simpler graphs using Cartesian products:
@@ -199,6 +212,61 @@ opg.add_vertex(1);
 std::cout << "Graph name: " << opg[boost::graph_bundle].name << std::endl;  // "Generic"
 ```
 
+### Creating Multidimensional Grids
+```cpp
+// 0D grid (point) - using type alias Grid
+Grid point({});         // Equivalent to OPG (Grid is alias for BGrid)
+std::cout << "Vertices: " << point.num_vertices << std::endl;  // 1
+std::cout << "Edges: " << point.num_edges << std::endl;        // 0
+std::cout << "Dimensions: " << point.dimensions.size() << std::endl; // 0
+
+// 1D grid (line) - mixing BGrid and Grid usage
+Grid line({5});         // Equivalent to BMesh(5)
+std::cout << "Vertices: " << line.num_vertices << std::endl;   // 5
+std::cout << "Edges: " << line.num_edges << std::endl;         // 8
+std::cout << "Diameter: " << line.diameter << std::endl;       // 4
+
+// 2D grid (rectangle)
+BGrid rect({3, 4});     // Sorted to {4, 3} - 4×3 bidirectional grid
+std::cout << "Vertices: " << rect.num_vertices << std::endl;   // 12
+std::cout << "Edges: " << rect.num_edges << std::endl;         // 34
+std::cout << "Diameter: " << rect.diameter << std::endl;       // 5
+std::cout << "Dimensions: " << rect.dimensions[0] << "×" << rect.dimensions[1] << std::endl; // 4×3
+std::cout << "Name: " << rect[boost::graph_bundle].name << std::endl;  // "BGrid[4,3]"
+
+// 3D grid (box)
+BGrid box({2, 3, 4});   // 2×3×4 bidirectional grid
+std::cout << "Vertices: " << box.num_vertices << std::endl;    // 24
+std::cout << "Diameter: " << box.diameter << std::endl;        // 7 (1+2+3+1)
+
+// Access individual dimensions
+for (size_t i = 0; i < box.dimensions.size(); ++i) {
+    std::cout << "Dim " << i << ": " << box.dimensions[i] << std::endl;
+}
+
+// 4D grid (hypercube variation)
+BGrid hyper({2, 2, 2, 2});  // 2^4 vertices
+std::cout << "Vertices: " << hyper.num_vertices << std::endl;  // 16
+std::cout << "Diameter: " << hyper.diameter << std::endl;      // 4
+
+// Dimension filtering and sorting examples
+BGrid filtered({3, 1, 5, 1, 2});  // Filters out 1s, sorts: {5, 3, 2}
+std::cout << "Filtered dimensions: ";
+for (size_t i = 0; i < filtered.dimensions.size(); ++i) {
+    std::cout << filtered.dimensions[i];
+    if (i < filtered.dimensions.size() - 1) std::cout << "×";
+}
+std::cout << std::endl;  // "5×3×2"
+
+BGrid all_ones({1, 1, 1});  // All filtered out → OPG with dimension {1}
+std::cout << "All ones vertices: " << all_ones.num_vertices << std::endl;  // 1
+std::cout << "All ones dimension: " << all_ones.dimensions[0] << std::endl; // 1
+
+// Modification converts to generic graph
+rect.add_vertex(100);
+std::cout << "Graph name: " << rect[boost::graph_bundle].name << std::endl;  // "Generic"
+```
+
 ### Cartesian Product Operations
 
 #### Creating a 2D Grid
@@ -293,6 +361,25 @@ std::cout << "Hybrid edges: " << hybrid.num_edges << std::endl;        // 18
 std::cout << "Hybrid name: " << hybrid[boost::graph_bundle].name << std::endl;  // "BMesh ⊗ UMesh"
 ```
 
+#### BGrid/Grid in Cartesian Products
+```cpp
+Grid grid2d({3, 3});    // 2D bidirectional grid (9 vertices, 24 edges) - using Grid alias
+URing ring(4);          // Unidirectional ring (4 vertices, 4 edges)
+
+Graph complex3d = gproduct(grid2d, ring);  // Creates 3D structure
+// Result: 9×4 = 36 vertices, 9×4 + 24×4 = 36 + 96 = 132 edges
+
+std::cout << "3D vertices: " << complex3d.num_vertices << std::endl;  // 36
+std::cout << "3D edges: " << complex3d.num_edges << std::endl;        // 132
+std::cout << "3D name: " << complex3d[boost::graph_bundle].name << std::endl;  // "BGrid[3,3] ⊗ URing"
+
+// BGrid can also be used with OPG (identity)
+OPG point;
+Graph same_grid = gproduct(grid2d, point);  // Results in same structure as grid2d
+std::cout << "Same vertices: " << same_grid.num_vertices << std::endl;  // 9
+std::cout << "Same edges: " << same_grid.num_edges << std::endl;        // 24
+```
+
 ## Building
 
 This project uses Bazel for building:
@@ -314,6 +401,7 @@ The library includes comprehensive tests using Google Test framework:
 - BRing topology behavior
 - UMesh topology behavior
 - BMesh topology behavior
+- BGrid topology behavior
 - OPG topology behavior
 - Cartesian product operations
 - Diameter calculations

@@ -172,6 +172,17 @@ TEST_F(GraphTest, GraphName) {
   EXPECT_EQ(g[boost::graph_bundle].name, "Generic");
 }
 
+TEST_F(GraphTest, NumDimensionsProxy) {
+  Graph g;
+  
+  // Generic graph should have 0 dimensions
+  EXPECT_EQ(g.num_dimensions, 0);
+  
+  // Test implicit conversion to size_t
+  size_t dims = g.num_dimensions;
+  EXPECT_EQ(dims, 0);
+}
+
 }  // namespace
 
 // URing Tests
@@ -277,6 +288,17 @@ TEST_F(URingTest, DimensionProxy) {
   
   // Test implicit conversion
   EXPECT_EQ(ring.dimension, 5);
+}
+
+TEST_F(URingTest, NumDimensionsProxy) {
+  URing ring(5);
+  
+  // URing should have 1 dimension
+  EXPECT_EQ(ring.num_dimensions, 1);
+  
+  // Test implicit conversion to size_t
+  size_t dims = ring.num_dimensions;
+  EXPECT_EQ(dims, 1);
 }
 
 }  // namespace
@@ -682,6 +704,17 @@ TEST_F(OPGTest, DimensionProxy) {
   EXPECT_EQ(opg.dimension, 1);
 }
 
+TEST_F(OPGTest, NumDimensionsProxy) {
+  OPG opg;
+  
+  // OPG should have 1 dimension
+  EXPECT_EQ(opg.num_dimensions, 1);
+  
+  // Test implicit conversion to size_t
+  size_t dims = opg.num_dimensions;
+  EXPECT_EQ(dims, 1);
+}
+
 TEST_F(OPGTest, ProxyAccess) {
   OPG opg;
   
@@ -976,6 +1009,252 @@ TEST_F(BMeshTest, CompareWithUMesh) {
   EXPECT_EQ(bmesh.num_edges, 2 * umesh.num_edges);   // BMesh has twice the edges
   EXPECT_EQ(bmesh.diameter, umesh.diameter);         // Same diameter
   EXPECT_EQ(bmesh.dimension, umesh.dimension);       // Same dimension
+}
+
+}  // namespace
+
+// BGrid Tests
+namespace {
+
+class BGridTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    // Fresh BGrid for each test
+  }
+};
+
+TEST_F(BGridTest, EmptyDimensionsList) {
+  BGrid grid({});
+  
+  EXPECT_EQ(grid.num_vertices, 1);  // Should be OPG
+  EXPECT_EQ(grid.num_edges, 0);
+  EXPECT_EQ(grid.diameter, 0);
+  EXPECT_EQ(grid.dimensions.size(), 1);  // Reports as length 1 with entry 1
+  EXPECT_EQ(grid.dimensions[0], 1);
+  EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[]");
+}
+
+TEST_F(BGridTest, SingleDimension) {
+  BGrid grid({5});
+  
+  EXPECT_EQ(grid.num_vertices, 5);    // Should be BMesh(5)
+  EXPECT_EQ(grid.num_edges, 8);       // 2*(5-1) = 8
+  EXPECT_EQ(grid.diameter, 4);        // 5-1 = 4
+  EXPECT_EQ(grid.dimensions.size(), 1);
+  EXPECT_EQ(grid.dimensions[0], 5);
+  EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[5]");
+}
+
+TEST_F(BGridTest, TwoDimensionalGrid) {
+  BGrid grid({3, 4});
+  
+  EXPECT_EQ(grid.num_vertices, 12);   // 3*4 = 12
+  EXPECT_EQ(grid.diameter, 5);        // (3-1) + (4-1) = 2 + 3 = 5
+  EXPECT_EQ(grid.dimensions.size(), 2);
+  EXPECT_EQ(grid.dimensions[0], 4);   // Sorted in descending order: 4, 3
+  EXPECT_EQ(grid.dimensions[1], 3);
+  EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[4,3]");
+  
+  // Edge calculation: BMesh(3) has 4 edges, BMesh(4) has 6 edges
+  // |E| = 3*6 + 4*4 = 18 + 16 = 34
+  EXPECT_EQ(grid.num_edges, 34);
+}
+
+TEST_F(BGridTest, ThreeDimensionalGrid) {
+  BGrid grid({2, 3, 2});
+  
+  // Should be gproduct(gproduct(BMesh(3), BMesh(2)), BMesh(2)) - sorted descending
+  EXPECT_EQ(grid.num_vertices, 12);   // 2*3*2 = 12
+  EXPECT_EQ(grid.diameter, 4);        // (2-1) + (3-1) + (2-1) = 1 + 2 + 1 = 4
+  EXPECT_EQ(grid.dimensions.size(), 3);
+  EXPECT_EQ(grid.dimensions[0], 3);   // Sorted in descending order: 3, 2, 2
+  EXPECT_EQ(grid.dimensions[1], 2);
+  EXPECT_EQ(grid.dimensions[2], 2);
+  EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[3,2,2]");
+}
+
+TEST_F(BGridTest, FourDimensionalGrid) {
+  BGrid grid({2, 2, 2, 2});
+  
+  EXPECT_EQ(grid.num_vertices, 16);   // 2^4 = 16
+  EXPECT_EQ(grid.diameter, 4);        // 4*(2-1) = 4
+  EXPECT_EQ(grid.dimensions.size(), 4);
+  EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[2,2,2,2]");
+}
+
+TEST_F(BGridTest, DimensionAccess) {
+  BGrid grid({2, 3, 5, 7});
+  
+  EXPECT_EQ(grid.dimensions.size(), 4);
+  EXPECT_EQ(grid.dimensions[0], 7);   // Sorted in descending order: 7, 5, 3, 2
+  EXPECT_EQ(grid.dimensions[1], 5);
+  EXPECT_EQ(grid.dimensions[2], 3);
+  EXPECT_EQ(grid.dimensions[3], 2);
+  
+  // Test the get() method
+  const auto& dims = grid.dimensions.get();
+  EXPECT_EQ(dims.size(), 4);
+  EXPECT_EQ(dims[0], 7);
+  EXPECT_EQ(dims[3], 2);
+}
+
+TEST_F(BGridTest, DimensionFiltering) {
+  // Test that dimensions equal to 1 are filtered out
+  BGrid grid({3, 1, 5, 1, 2, 1});
+  
+  EXPECT_EQ(grid.dimensions.size(), 3);  // Only 3, 5, 2 remain
+  EXPECT_EQ(grid.dimensions[0], 5);      // Sorted: 5, 3, 2
+  EXPECT_EQ(grid.dimensions[1], 3);
+  EXPECT_EQ(grid.dimensions[2], 2);
+  EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[5,3,2]");
+  
+  // Test case where all dimensions are 1
+  BGrid all_ones({1, 1, 1});
+  EXPECT_EQ(all_ones.dimensions.size(), 1);  // Should report as length 1 with entry 1
+  EXPECT_EQ(all_ones.dimensions[0], 1);
+  EXPECT_EQ(all_ones.num_vertices, 1);       // Should be OPG
+  EXPECT_EQ(all_ones.num_edges, 0);
+}
+
+TEST_F(BGridTest, ModificationConvertsToGeneric) {
+  BGrid grid({3, 3});
+  
+  EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[3,3]");
+  EXPECT_EQ(grid.num_vertices, 9);
+  
+  // Adding vertex should convert to Generic
+  grid.add_vertex(100);
+  EXPECT_EQ(grid[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(grid.num_vertices, 10);
+  
+  // Create another grid to test edge addition
+  BGrid grid2({2, 2});
+  EXPECT_EQ(grid2[boost::graph_bundle].name, "BGrid[2,2]");
+  
+  // Adding edge should convert to Generic
+  grid2.add_edge(0, 0);  // Add self-loop
+  EXPECT_EQ(grid2[boost::graph_bundle].name, "Generic");
+}
+
+TEST_F(BGridTest, InvalidDimensions) {
+  EXPECT_THROW(BGrid({0}), std::invalid_argument);
+  EXPECT_THROW(BGrid({3, 0, 2}), std::invalid_argument);
+  EXPECT_THROW(BGrid({0, 5}), std::invalid_argument);
+}
+
+TEST_F(BGridTest, ProxyAccess) {
+  BGrid grid({3, 4});
+  
+  // Test all proxy patterns work
+  EXPECT_EQ(grid.num_vertices, 12);
+  EXPECT_EQ(grid.num_edges, 34);
+  EXPECT_EQ(grid.diameter, 5);
+  EXPECT_EQ(grid.dimensions.size(), 2);
+  
+  // Test vertices and edges vectors
+  std::vector<int32_t> vertices = grid.vertices;
+  EXPECT_EQ(vertices.size(), 12);
+  
+  std::vector<std::pair<int32_t, int32_t>> edges = grid.edges;
+  EXPECT_EQ(edges.size(), 34);
+}
+
+TEST_F(BGridTest, CompareWithDirectGproduct) {
+  // BGrid({3, 4}) should be equivalent to gproduct(BMesh(3), BMesh(4))
+  BGrid grid({3, 4});
+  BMesh mesh1(3);
+  BMesh mesh2(4);
+  Graph direct_product = gproduct(static_cast<Graph&>(mesh1), static_cast<Graph&>(mesh2));
+  
+  EXPECT_EQ(grid.num_vertices, direct_product.num_vertices);
+  EXPECT_EQ(grid.num_edges, direct_product.num_edges);
+}
+
+TEST_F(BGridTest, LeftAssociativity) {
+  // BGrid({2, 3, 2}) should be equivalent to gproduct(gproduct(BMesh(2), BMesh(3)), BMesh(2))
+  BGrid grid({2, 3, 2});
+  
+  BMesh mesh1(2);
+  BMesh mesh2(3);
+  BMesh mesh3(2);
+  
+  Graph step1 = gproduct(static_cast<Graph&>(mesh1), static_cast<Graph&>(mesh2));
+  Graph step2 = gproduct(step1, static_cast<Graph&>(mesh3));
+  
+  EXPECT_EQ(grid.num_vertices, step2.num_vertices);
+  EXPECT_EQ(grid.num_edges, step2.num_edges);
+}
+
+TEST_F(BGridTest, CartesianProductWithOPG) {
+  BGrid grid({3, 3});  // 3×3 grid
+  OPG opg;
+  
+  // BGrid × OPG should preserve grid structure (identity property)
+  Graph product1 = gproduct(static_cast<Graph&>(grid), static_cast<Graph&>(opg));
+  EXPECT_EQ(product1.num_vertices, 9);   // 9×1 = 9
+  EXPECT_EQ(product1.num_edges, 24);     // 9×0 + 24×1 = 24
+  
+  // OPG × BGrid should also preserve structure
+  Graph product2 = gproduct(static_cast<Graph&>(opg), static_cast<Graph&>(grid));
+  EXPECT_EQ(product2.num_vertices, 9);   // 1×9 = 9
+  EXPECT_EQ(product2.num_edges, 24);     // 1×24 + 0×9 = 24
+}
+
+TEST_F(BGridTest, DimensionIndexOutOfRange) {
+  BGrid grid({2, 3});
+  
+  EXPECT_THROW(grid.dimensions[2], std::out_of_range);
+  EXPECT_THROW(grid.dimensions[10], std::out_of_range);
+  
+  // Valid indices should work
+  EXPECT_NO_THROW(grid.dimensions[0]);
+  EXPECT_NO_THROW(grid.dimensions[1]);
+}
+
+TEST_F(BGridTest, LargeGrid) {
+  // Test with larger dimensions to verify scalability
+  BGrid grid({5, 4, 3});
+  
+  EXPECT_EQ(grid.num_vertices, 60);    // 5*4*3 = 60
+  EXPECT_EQ(grid.diameter, 9);         // (5-1) + (4-1) + (3-1) = 4 + 3 + 2 = 9
+  EXPECT_EQ(grid.dimensions.size(), 3);
+}
+
+TEST_F(BGridTest, TypeAlias) {
+  // Test that Grid type alias works
+  Grid grid({3, 2});  // Using Grid instead of BGrid
+  
+  EXPECT_EQ(grid.num_vertices, 6);      // 3*2 = 6
+  EXPECT_EQ(grid.dimensions.size(), 2);
+  EXPECT_EQ(grid.dimensions[0], 3);     // Sorted: 3, 2
+  EXPECT_EQ(grid.dimensions[1], 2);
+  EXPECT_EQ(grid[boost::graph_bundle].name, "BGrid[3,2]");
+}
+
+TEST_F(BGridTest, NumDimensionsProxy) {
+  // Test different dimensional grids
+  BGrid grid0d({});                    // 0D -> reports as 1D
+  EXPECT_EQ(grid0d.num_dimensions, 1);
+  
+  BGrid grid1d({5});                   // 1D
+  EXPECT_EQ(grid1d.num_dimensions, 1);
+  
+  BGrid grid2d({3, 4});                // 2D
+  EXPECT_EQ(grid2d.num_dimensions, 2);
+  
+  BGrid grid3d({2, 3, 4});             // 3D
+  EXPECT_EQ(grid3d.num_dimensions, 3);
+  
+  BGrid grid4d({2, 2, 2, 2});          // 4D
+  EXPECT_EQ(grid4d.num_dimensions, 4);
+  
+  // Test with Grid alias
+  Grid grid_alias({5, 3, 2});
+  EXPECT_EQ(grid_alias.num_dimensions, 3);
+  
+  // Test implicit conversion to size_t
+  size_t dims = grid3d.num_dimensions;
+  EXPECT_EQ(dims, 3);
 }
 
 }  // namespace

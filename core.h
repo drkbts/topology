@@ -123,6 +123,22 @@ namespace topology
         const BaseGraph &graph_;
     };
 
+    // Proxy class for num_dimensions access
+    class NumDimensionsProxy
+    {
+    public:
+        NumDimensionsProxy(const BaseGraph &graph) : graph_(graph) {}
+
+        // Implicit conversion to size_t for g.num_dimensions usage
+        operator size_t() const;
+
+        // Assignment is not allowed (read-only property)
+        NumDimensionsProxy &operator=(size_t) = delete;
+
+    private:
+        const BaseGraph &graph_;
+    };
+
     // Graph class that inherits from boost::adjacency_list
     class Graph : public BaseGraph
     {
@@ -161,6 +177,9 @@ namespace topology
         // Proxy for g.edges construct
         EdgesProxy edges;
 
+        // Proxy for g.num_dimensions construct
+        NumDimensionsProxy num_dimensions;
+
     protected:
         // Get the diameter of the graph (longest shortest path)
         // Returns -1 if graph is disconnected or empty
@@ -173,6 +192,7 @@ namespace topology
         friend class DiameterProxy;
         friend class VerticesProxy;
         friend class EdgesProxy;
+        friend class NumDimensionsProxy;
     };
 
     // Forward declarations for specialized topologies
@@ -180,6 +200,7 @@ namespace topology
     class BRing;
     class UMesh;
     class BMesh;
+    class BGrid;
     class OPG;
 
     // Proxy class for dimension access (for specialized topologies)
@@ -196,6 +217,28 @@ namespace topology
 
     private:
         const Graph &graph_;
+    };
+
+    // Proxy class for multidimensional access (for BGrid)
+    class MultiDimensionProxy
+    {
+    public:
+        MultiDimensionProxy(const BGrid &grid);
+
+        // Access individual dimensions
+        size_t operator[](size_t index) const;
+
+        // Get all dimensions
+        const std::vector<size_t>& get() const;
+
+        // Number of dimensions
+        size_t size() const;
+
+        // Assignment is not allowed (read-only property)
+        MultiDimensionProxy &operator=(const std::vector<size_t>&) = delete;
+
+    private:
+        const BGrid &grid_;
     };
 
     // URing - Unidirectional Ring topology
@@ -330,6 +373,44 @@ namespace topology
     private:
         size_t dimension_;
     };
+
+    // BGrid - Multidimensional Bidirectional Grid topology (Cartesian products of BMesh)
+    class BGrid : public Graph
+    {
+    public:
+        // Constructor: creates grid from vector of positive dimensions
+        // Empty vector {} → OPG (single vertex)
+        // Single dimension {N} → BMesh(N)
+        // Multiple dimensions {N1, N2, ...} → Left associative gproduct of BMesh's
+        explicit BGrid(const std::vector<size_t>& dimensions);
+
+        // Override add_vertex and add_edge to convert to generic graph when modified
+        void add_vertex(int32_t id) override;
+        void add_edge(int32_t i, int32_t j) override;
+
+        // Dimension access
+        const std::vector<size_t>& GetDimensions() const;
+        size_t GetNumDimensions() const;
+
+        // Multi-dimensional proxy access
+        MultiDimensionProxy dimensions;
+
+    protected:
+        // Override diameter calculation for grid topology
+        int getDiameter() const override;
+
+    private:
+        std::vector<size_t> dimensions_;
+
+        // Helper method to construct the grid using left-associative gproduct
+        void buildGrid(const std::vector<size_t>& dims);
+
+        // Helper method to calculate edge count for multidimensional grids
+        size_t calculateGridEdges(const std::vector<size_t>& dims) const;
+    };
+
+    // Type alias for convenience
+    using Grid = BGrid;
 
     // Cartesian product utility functions
     namespace gproduct_utils

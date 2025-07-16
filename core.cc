@@ -90,14 +90,44 @@ namespace topology
         return 0;
     }
 
+    // NumDimensionsProxy implementation
+    NumDimensionsProxy::operator size_t() const
+    {
+        // Get the graph name to determine type
+        const std::string& name = graph_[boost::graph_bundle].name;
+        
+        // Check if it's a BGrid (multiple dimensions possible)
+        if (name.substr(0, 6) == "BGrid[") {
+            // Count commas in the name to determine dimensions
+            // BGrid[3,4,5] has 3 dimensions, BGrid[5] has 1 dimension, BGrid[] has 1 dimension
+            if (name == "BGrid[]") {
+                return 1; // Special case for empty BGrid (OPG)
+            }
+            
+            size_t dimensions = 1; // At least one dimension
+            for (char c : name) {
+                if (c == ',') dimensions++;
+            }
+            return dimensions;
+        }
+        
+        // For other specialized topologies, return 1 (single dimension)
+        if (name == "URing" || name == "BRing" || name == "UMesh" || name == "BMesh" || name == "OPG") {
+            return 1;
+        }
+        
+        // Generic graph, return 0
+        return 0;
+    }
+
     // Graph class implementation
 
-    Graph::Graph() : diameter(*this), num_vertices(*this), num_edges(*this), vertices(*this), edges(*this)
+    Graph::Graph() : diameter(*this), num_vertices(*this), num_edges(*this), vertices(*this), edges(*this), num_dimensions(*this)
     {
         (*this)[boost::graph_bundle].name = "Generic";
     }
 
-    Graph::Graph(const BaseGraph &other) : BaseGraph(other), diameter(*this), num_vertices(*this), num_edges(*this), vertices(*this), edges(*this)
+    Graph::Graph(const BaseGraph &other) : BaseGraph(other), diameter(*this), num_vertices(*this), num_edges(*this), vertices(*this), edges(*this), num_dimensions(*this)
     {
         (*this)[boost::graph_bundle].name = "Generic";
     }
@@ -442,6 +472,220 @@ namespace topology
     }
 
     void OPG::add_edge(int32_t i, int32_t j)
+    {
+        // Convert to generic graph when modified
+        if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")
+        {
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "Generic";
+        }
+        Graph::add_edge(i, j);
+    }
+
+    // MultiDimensionProxy implementation
+    MultiDimensionProxy::MultiDimensionProxy(const BGrid &grid) : grid_(grid) {}
+
+    size_t MultiDimensionProxy::operator[](size_t index) const
+    {
+        const auto& dims = grid_.GetDimensions();
+        if (index >= dims.size()) {
+            throw std::out_of_range("Dimension index out of range");
+        }
+        return dims[index];
+    }
+
+    const std::vector<size_t>& MultiDimensionProxy::get() const
+    {
+        return grid_.GetDimensions();
+    }
+
+    size_t MultiDimensionProxy::size() const
+    {
+        return grid_.GetNumDimensions();
+    }
+
+    // BGrid implementation
+    BGrid::BGrid(const std::vector<size_t>& dimensions) : dimensions(*this)
+    {
+        // Validate all dimensions are positive
+        for (size_t dim : dimensions) {
+            if (dim == 0) {
+                throw std::invalid_argument("All grid dimensions must be positive");
+            }
+        }
+
+        // Sort dimensions in descending order and filter out dimensions equal to 1
+        std::vector<size_t> filtered_dims;
+        for (size_t dim : dimensions) {
+            if (dim > 1) {
+                filtered_dims.push_back(dim);
+            }
+        }
+        
+        // Sort in descending order
+        std::sort(filtered_dims.begin(), filtered_dims.end(), std::greater<size_t>());
+        
+        // If empty after filtering, report as length 1 with entry 1
+        if (filtered_dims.empty()) {
+            dimensions_ = {1};
+        } else {
+            dimensions_ = filtered_dims;
+        }
+
+        if (dimensions_.empty() || (dimensions_.size() == 1 && dimensions_[0] == 1)) {
+            // Case 1: Empty list → OPG
+            OPG opg;
+            // Copy the OPG structure to this BGrid
+            for (auto [vi, vi_end] = boost::vertices(opg); vi != vi_end; ++vi) {
+                Graph::add_vertex(opg[*vi].id);
+            }
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "BGrid[]";
+
+        } else if (dimensions_.size() == 1) {
+            // Case 2: Single dimension → BMesh
+            BMesh mesh(dimensions_[0]);
+            // Copy the BMesh structure to this BGrid
+            for (auto [vi, vi_end] = boost::vertices(mesh); vi != vi_end; ++vi) {
+                Graph::add_vertex(mesh[*vi].id);
+            }
+            for (auto [ei, ei_end] = boost::edges(mesh); ei != ei_end; ++ei) {
+                auto src = boost::source(*ei, mesh);
+                auto tgt = boost::target(*ei, mesh);
+                Graph::add_edge(mesh[src].id, mesh[tgt].id);
+            }
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "BGrid[" + std::to_string(dimensions_[0]) + "]";
+
+        } else {
+            // Case 3: Multiple dimensions → Left associative gproduct of BMesh's
+            buildGrid(dimensions_);
+
+            // Build name: BGrid[d1,d2,d3,...] using filtered and sorted dimensions
+            std::string name = "BGrid[";
+            for (size_t i = 0; i < dimensions_.size(); ++i) {
+                if (i > 0) name += ",";
+                name += std::to_string(dimensions_[i]);
+            }
+            name += "]";
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = name;
+        }
+    }
+
+    void BGrid::buildGrid(const std::vector<size_t>& dims)
+    {
+        if (dims.size() < 2) return;
+
+        // Build the grid using recursive gproducts
+        // Create a helper function to compute the left-associative product
+        std::function<void(Graph&, const std::vector<size_t>&, size_t)> build_product = 
+            [&](Graph& result, const std::vector<size_t>& dimensions, size_t index) {
+                if (index == 0) {
+                    // Base case: copy first BMesh to result
+                    BMesh mesh(dimensions[0]);
+                    for (auto [vi, vi_end] = boost::vertices(mesh); vi != vi_end; ++vi) {
+                        result.add_vertex(mesh[*vi].id);
+                    }
+                    for (auto [ei, ei_end] = boost::edges(mesh); ei != ei_end; ++ei) {
+                        auto src = boost::source(*ei, mesh);
+                        auto tgt = boost::target(*ei, mesh);
+                        result.add_edge(mesh[src].id, mesh[tgt].id);
+                    }
+                    return;
+                }
+                
+                // Recursive case: compute product with previous results
+                Graph prev_result;
+                build_product(prev_result, dimensions, index - 1);
+                
+                BMesh current_mesh(dimensions[index]);
+                Graph product_result = gproduct(prev_result, static_cast<Graph&>(current_mesh));
+                
+                // Copy product_result to result
+                for (auto [vi, vi_end] = boost::vertices(product_result); vi != vi_end; ++vi) {
+                    result.add_vertex(product_result[*vi].id);
+                }
+                for (auto [ei, ei_end] = boost::edges(product_result); ei != ei_end; ++ei) {
+                    auto src = boost::source(*ei, product_result);
+                    auto tgt = boost::target(*ei, product_result);
+                    result.add_edge(product_result[src].id, product_result[tgt].id);
+                }
+            };
+
+        // Build the final grid
+        Graph final_result;
+        build_product(final_result, dims, dims.size() - 1);
+
+        // Copy to this BGrid
+        for (auto [vi, vi_end] = boost::vertices(final_result); vi != vi_end; ++vi) {
+            Graph::add_vertex(final_result[*vi].id);
+        }
+        for (auto [ei, ei_end] = boost::edges(final_result); ei != ei_end; ++ei) {
+            auto src = boost::source(*ei, final_result);
+            auto tgt = boost::target(*ei, final_result);
+            Graph::add_edge(final_result[src].id, final_result[tgt].id);
+        }
+    }
+
+    size_t BGrid::calculateGridEdges(const std::vector<size_t>& dims) const
+    {
+        if (dims.empty()) return 0;
+        if (dims.size() == 1) {
+            return 2 * (dims[0] - 1); // BMesh edge count
+        }
+
+        // Calculate iteratively using gproduct formula
+        size_t vertices1 = dims[0];
+        size_t edges1 = 2 * (dims[0] - 1);
+
+        for (size_t i = 1; i < dims.size(); ++i) {
+            size_t vertices2 = dims[i];
+            size_t edges2 = 2 * (dims[i] - 1);
+
+            // Apply gproduct formula: |E(G1 ⊗ G2)| = |V(G1)| × |E(G2)| + |E(G1)| × |V(G2)|
+            size_t new_edges = vertices1 * edges2 + edges1 * vertices2;
+            size_t new_vertices = vertices1 * vertices2;
+
+            vertices1 = new_vertices;
+            edges1 = new_edges;
+        }
+
+        return edges1;
+    }
+
+    const std::vector<size_t>& BGrid::GetDimensions() const
+    {
+        return dimensions_;
+    }
+
+    size_t BGrid::GetNumDimensions() const
+    {
+        return dimensions_.size();
+    }
+
+    int BGrid::getDiameter() const
+    {
+        if (dimensions_.empty()) {
+            return 0; // OPG case
+        }
+
+        // For BMesh grid, diameter is sum of individual mesh diameters
+        // Each BMesh(n) has diameter n-1
+        int total_diameter = 0;
+        for (size_t dim : dimensions_) {
+            total_diameter += static_cast<int>(dim - 1);
+        }
+        return total_diameter;
+    }
+
+    void BGrid::add_vertex(int32_t id)
+    {
+        // Convert to generic graph when modified
+        if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")
+        {
+            static_cast<BaseGraph&>(*this)[boost::graph_bundle].name = "Generic";
+        }
+        Graph::add_vertex(id);
+    }
+
+    void BGrid::add_edge(int32_t i, int32_t j)
     {
         // Convert to generic graph when modified
         if (static_cast<BaseGraph&>(*this)[boost::graph_bundle].name != "Generic")
