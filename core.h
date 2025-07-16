@@ -177,7 +177,10 @@ namespace topology
 
     // Forward declarations for specialized topologies
     class URing;
+    class BRing;
     class UMesh;
+    class BMesh;
+    class OPG;
 
     // Proxy class for dimension access (for specialized topologies)
     class DimensionProxy
@@ -222,6 +225,33 @@ namespace topology
         size_t dimension_;
     };
 
+    // BRing - Bidirectional Ring topology
+    class BRing : public Graph
+    {
+    public:
+        // Constructor: creates a bidirectional ring with N vertices
+        // N=1: single vertex with no edges
+        // N>1: vertices "0","1",...,"N-1" connected bidirectionally in ring: 0↔1↔2↔...↔(N-1)↔0
+        explicit BRing(size_t N);
+
+        // Override add_vertex and add_edge to convert to generic graph when modified
+        void add_vertex(int32_t id) override;
+        void add_edge(int32_t i, int32_t j) override;
+
+        // Proxy for g.dimension construct
+        DimensionProxy dimension;
+
+        // Get the size of the ring
+        size_t GetDimensionSize() const;
+
+    protected:
+        // Override diameter calculation for bidirectional ring topology
+        int getDiameter() const override;
+
+    private:
+        size_t dimension_;
+    };
+
     // UMesh - Unidirectional Mesh topology (1D linear chain without wrap-around)
     class UMesh : public Graph
     {
@@ -243,6 +273,58 @@ namespace topology
 
     protected:
         // Override diameter calculation for mesh topology
+        int getDiameter() const override;
+
+    private:
+        size_t dimension_;
+    };
+
+    // OPG - One-Point Graph topology (single vertex, no edges)
+    class OPG : public Graph
+    {
+    public:
+        // Constructor: creates a single vertex with ID 0
+        OPG();
+
+        // Override add_vertex and add_edge to convert to generic graph when modified
+        void add_vertex(int32_t id) override;
+        void add_edge(int32_t i, int32_t j) override;
+
+        // Proxy for g.dimension construct (always returns 1)
+        DimensionProxy dimension;
+
+        // Get the dimension size (always 1)
+        size_t GetDimensionSize() const;
+
+    protected:
+        // Override diameter calculation (always 0)
+        int getDiameter() const override;
+
+    private:
+        size_t dimension_;  // Always 1
+    };
+
+    // BMesh - Bidirectional Mesh topology (1D linear chain with bidirectional edges)
+    class BMesh : public Graph
+    {
+    public:
+        // Constructor: creates a bidirectional mesh with N vertices
+        // N=1: single vertex with no edges
+        // N>1: vertices "0","1",...,"N-1" connected bidirectionally: 0↔1↔2↔...↔(N-1)
+        explicit BMesh(size_t N);
+
+        // Override add_vertex and add_edge to convert to generic graph when modified
+        void add_vertex(int32_t id) override;
+        void add_edge(int32_t i, int32_t j) override;
+
+        // Proxy for g.dimension construct
+        DimensionProxy dimension;
+
+        // Get the size of the mesh
+        size_t GetDimensionSize() const;
+
+    protected:
+        // Override diameter calculation for bidirectional mesh topology
         int getDiameter() const override;
 
     private:

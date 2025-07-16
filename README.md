@@ -9,7 +9,7 @@ This library provides a high-level interface for working with network topologies
 ## Features
 
 - **Generic Graph Class**: A flexible graph implementation with integer vertex IDs
-- **Specialized Topologies**: Pre-built topology classes like `URing` for unidirectional rings and `UMesh` for linear chains
+- **Specialized Topologies**: Pre-built topology classes like `URing` for unidirectional rings, `BRing` for bidirectional rings, `UMesh` for unidirectional linear chains, and `BMesh` for bidirectional linear chains
 - **Cartesian Product Operations**: Create complex topologies by combining simpler graphs using Cartesian products
 - **Proxy Access Patterns**: Convenient access to graph properties using proxy objects
 - **Property Support**: Built-in support for vertex, edge, and graph properties
@@ -30,7 +30,7 @@ Access graph information through convenient proxy objects:
 - `g.num_edges` - Number of edges  
 - `g.vertices` - Vector of all vertex IDs
 - `g.edges` - Vector of all edge pairs (source, destination)
-- `g.dimension` - Dimension size for specialized topologies (URing, UMesh)
+- `g.dimension` - Dimension size for specialized topologies (URing, BRing, UMesh, BMesh)
 
 ### URing Class
 Specialized topology for unidirectional rings:
@@ -40,6 +40,15 @@ Specialized topology for unidirectional rings:
 - Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 - Optimized diameter calculation: floor(N/2)
 
+### BRing Class
+Specialized topology for bidirectional rings:
+- Constructor takes ring size N
+- Creates vertices 0, 1, ..., N-1
+- Connects them bidirectionally in a ring: 0↔1↔2↔...↔(N-1)↔0
+- Has 2×N edges (twice as many as URing due to bidirectional connections)
+- Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
+- Optimized diameter calculation: floor(N/2) (same as URing despite bidirectional edges)
+
 ### UMesh Class
 Specialized topology for unidirectional linear chains (1D mesh):
 - Constructor takes mesh size N
@@ -47,6 +56,23 @@ Specialized topology for unidirectional linear chains (1D mesh):
 - Connects them in a linear chain: 0→1→2→...→(N-1) (no wrap-around)
 - Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
 - Optimized diameter calculation: N-1
+
+### BMesh Class
+Specialized topology for bidirectional linear chains (1D mesh):
+- Constructor takes mesh size N
+- Creates vertices 0, 1, ..., N-1
+- Connects them bidirectionally: 0↔1↔2↔...↔(N-1) (no wrap-around)
+- Has 2×(N-1) edges (twice as many as UMesh due to bidirectional connections)
+- Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
+- Optimized diameter calculation: N-1 (same as UMesh despite bidirectional edges)
+
+### OPG Class
+Specialized topology for one-point graphs (single vertex, no edges):
+- Default constructor creates a single vertex (vertex 0)
+- Contains exactly one vertex and zero edges
+- Allows modification via `add_vertex`/`add_edge`, but converts to generic graph (name changes to "Generic")
+- Optimized diameter calculation: 0 (single vertex has zero diameter)
+- Dimension proxy returns 1 (representing the single vertex)
 
 ### Cartesian Product Operations
 Create complex topologies by combining simpler graphs using Cartesian products:
@@ -119,6 +145,20 @@ ring.add_vertex(10);
 std::cout << "Graph name: " << ring[boost::graph_bundle].name << std::endl;  // "Generic"
 ```
 
+### Creating a Bidirectional Ring
+```cpp
+BRing ring(5);  // Creates bidirectional ring with vertices 0↔1↔2↔3↔4↔0
+
+std::cout << "Ring size: " << ring.dimension << std::endl;   // 5
+std::cout << "Vertices: " << ring.num_vertices << std::endl;  // 5
+std::cout << "Edges: " << ring.num_edges << std::endl;       // 2*N = 10
+std::cout << "Diameter: " << ring.diameter << std::endl;     // floor(5/2) = 2
+
+// Modification is allowed but converts to generic graph:
+ring.add_vertex(10);
+std::cout << "Graph name: " << ring[boost::graph_bundle].name << std::endl;  // "Generic"
+```
+
 ### Creating a Unidirectional Mesh (Linear Chain)
 ```cpp
 UMesh mesh(5);  // Creates linear chain with vertices 0→1→2→3→4
@@ -129,6 +169,34 @@ std::cout << "Diameter: " << mesh.diameter << std::endl;    // N-1 = 4
 // Modification is allowed but converts to generic graph:
 mesh.add_vertex(10);
 std::cout << "Graph name: " << mesh[boost::graph_bundle].name << std::endl;  // "Generic"
+```
+
+### Creating a Bidirectional Mesh (Linear Chain)
+```cpp
+BMesh mesh(5);  // Creates bidirectional chain with vertices 0↔1↔2↔3↔4
+
+std::cout << "Mesh size: " << mesh.dimension << std::endl;  // 5
+std::cout << "Vertices: " << mesh.num_vertices << std::endl;  // 5
+std::cout << "Edges: " << mesh.num_edges << std::endl;       // 2*(N-1) = 8
+std::cout << "Diameter: " << mesh.diameter << std::endl;     // N-1 = 4
+
+// Modification is allowed but converts to generic graph:
+mesh.add_vertex(10);
+std::cout << "Graph name: " << mesh[boost::graph_bundle].name << std::endl;  // "Generic"
+```
+
+### Creating a One-Point Graph
+```cpp
+OPG opg;  // Creates single vertex graph with vertex 0
+
+std::cout << "OPG size: " << opg.dimension << std::endl;     // 1
+std::cout << "Vertices: " << opg.num_vertices << std::endl;  // 1
+std::cout << "Edges: " << opg.num_edges << std::endl;       // 0
+std::cout << "Diameter: " << opg.diameter << std::endl;     // 0
+
+// Modification is allowed but converts to generic graph:
+opg.add_vertex(1);
+std::cout << "Graph name: " << opg[boost::graph_bundle].name << std::endl;  // "Generic"
 ```
 
 ### Cartesian Product Operations
@@ -158,6 +226,19 @@ Graph torus = ring1 * ring2;  // Using operator syntax
 std::cout << "Torus name: " << torus[boost::graph_bundle].name << std::endl;  // "URing ⊗ URing"
 ```
 
+#### Creating a Bidirectional Torus
+```cpp
+BRing ring1(4);  // 0↔1↔2↔3↔0 (bidirectional)
+BRing ring2(4);  // 0↔1↔2↔3↔0 (bidirectional)
+
+Graph btorus = ring1 * ring2;  // Bidirectional torus
+// Creates 4×4 bidirectional torus with 16 vertices and 64 edges
+
+std::cout << "BRing vertices: " << btorus.num_vertices << std::endl;  // 16
+std::cout << "BRing edges: " << btorus.num_edges << std::endl;        // 64
+std::cout << "BRing name: " << btorus[boost::graph_bundle].name << std::endl;  // "BRing ⊗ BRing"
+```
+
 #### Creating a Cylinder
 ```cpp
 URing ring(6);   // 0→1→2→3→4→5→0
@@ -178,6 +259,38 @@ UMesh mesh(3);
 
 Graph complex = ring * mesh;  // 5×3 cylindrical mesh
 Graph another = gproduct(mesh, ring);  // 3×5 cylindrical mesh (different orientation)
+
+// Mixing bidirectional and unidirectional topologies
+BRing bring(4);  // Bidirectional ring
+UMesh umesh(3);  // Unidirectional mesh
+
+Graph hybrid = gproduct(bring, umesh);  // 4×3 hybrid topology
+// Result: 4×3 = 12 vertices, 4×2 + 8×3 = 8 + 24 = 32 edges
+```
+
+#### Using OPG in Cartesian Products
+```cpp
+OPG point;      // Single vertex graph
+UMesh path(5);  // Linear chain 0→1→2→3→4
+
+Graph star = gproduct(point, path);  // Creates path graph (OPG acts as identity)
+// Result: 1×5 = 5 vertices, 1×4 + 0×5 = 4 edges (same as original path)
+
+std::cout << "Star vertices: " << star.num_vertices << std::endl;  // 5
+std::cout << "Star edges: " << star.num_edges << std::endl;        // 4
+```
+
+#### BMesh in Cartesian Products
+```cpp
+BMesh bmesh(3);  // Bidirectional chain 0↔1↔2 (3 vertices, 4 edges)
+UMesh umesh(3);  // Unidirectional chain 0→1→2 (3 vertices, 2 edges)
+
+Graph hybrid = gproduct(bmesh, umesh);  // Mixed bidirectional/unidirectional product
+// Result: 3×3 = 9 vertices, 3×2 + 4×3 = 6 + 12 = 18 edges
+
+std::cout << "Hybrid vertices: " << hybrid.num_vertices << std::endl;  // 9
+std::cout << "Hybrid edges: " << hybrid.num_edges << std::endl;        // 18
+std::cout << "Hybrid name: " << hybrid[boost::graph_bundle].name << std::endl;  // "BMesh ⊗ UMesh"
 ```
 
 ## Building
@@ -198,7 +311,10 @@ The library includes comprehensive tests using Google Test framework:
 - Graph creation and manipulation
 - Proxy property access
 - URing topology behavior
+- BRing topology behavior
 - UMesh topology behavior
+- BMesh topology behavior
+- OPG topology behavior
 - Cartesian product operations
 - Diameter calculations
 - Type safety enforcement

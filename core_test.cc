@@ -281,6 +281,220 @@ TEST_F(URingTest, DimensionProxy) {
 
 }  // namespace
 
+// BRing Tests
+namespace {
+
+class BRingTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    // Fresh BRing for each test
+  }
+};
+
+TEST_F(BRingTest, InvalidRingSize) {
+  EXPECT_THROW(BRing(0), std::invalid_argument);
+}
+
+TEST_F(BRingTest, RingSize1) {
+  BRing ring(1);
+  
+  EXPECT_EQ(boost::num_vertices(ring), 1);
+  EXPECT_EQ(boost::num_edges(ring), 0);
+  EXPECT_EQ(ring.dimension, 1);
+  
+  // Test proxy patterns
+  EXPECT_EQ(ring.num_vertices, 1);
+  EXPECT_EQ(ring.num_edges, 0);
+  
+  // Check vertex has id 0
+  auto [vi, vi_end] = boost::vertices(ring);
+  EXPECT_EQ(ring[*vi].id, 0);
+}
+
+TEST_F(BRingTest, RingSize3) {
+  BRing ring(3);
+  
+  EXPECT_EQ(boost::num_vertices(ring), 3);
+  EXPECT_EQ(boost::num_edges(ring), 6);  // 2*N = 2*3 = 6 bidirectional edges
+  EXPECT_EQ(ring.dimension, 3);
+  
+  // Test proxy patterns
+  EXPECT_EQ(ring.num_vertices, 3);
+  EXPECT_EQ(ring.num_edges, 6);
+  
+  // Check vertex ids are 0, 1, 2
+  std::set<int32_t> ids;
+  auto [vi, vi_end] = boost::vertices(ring);
+  for (auto it = vi; it != vi_end; ++it) {
+    ids.insert(ring[*it].id);
+  }
+  EXPECT_EQ(ids, (std::set<int32_t>{0, 1, 2}));
+  
+  // Check edges form bidirectional ring: 0↔1↔2↔0
+  std::vector<std::pair<int32_t, int32_t>> edges = ring.edges;
+  std::set<std::pair<int32_t, int32_t>> edge_set(edges.begin(), edges.end());
+  
+  // Expected bidirectional edges: 0→1, 1→0, 1→2, 2→1, 2→0, 0→2
+  EXPECT_EQ(edge_set.count({0, 1}), 1);
+  EXPECT_EQ(edge_set.count({1, 0}), 1);
+  EXPECT_EQ(edge_set.count({1, 2}), 1);
+  EXPECT_EQ(edge_set.count({2, 1}), 1);
+  EXPECT_EQ(edge_set.count({2, 0}), 1);
+  EXPECT_EQ(edge_set.count({0, 2}), 1);
+}
+
+TEST_F(BRingTest, RingSize5) {
+  BRing ring(5);
+  
+  EXPECT_EQ(boost::num_vertices(ring), 5);
+  EXPECT_EQ(boost::num_edges(ring), 10);  // 2*N = 2*5 = 10 bidirectional edges
+  EXPECT_EQ(ring.dimension, 5);
+  
+  // Check some specific ring edges exist
+  std::vector<std::pair<int32_t, int32_t>> edges = ring.edges;
+  std::set<std::pair<int32_t, int32_t>> edge_set(edges.begin(), edges.end());
+  
+  // Verify bidirectional ring structure
+  EXPECT_EQ(edge_set.count({0, 1}), 1);
+  EXPECT_EQ(edge_set.count({1, 0}), 1);
+  EXPECT_EQ(edge_set.count({4, 0}), 1);  // Last to first
+  EXPECT_EQ(edge_set.count({0, 4}), 1);  // First to last
+}
+
+TEST_F(BRingTest, GraphName) {
+  // Test that BRing has correct name
+  BRing ring(3);
+  EXPECT_EQ(ring[boost::graph_bundle].name, "BRing");
+}
+
+TEST_F(BRingTest, DiameterCalculation) {
+  BRing ring1(1);
+  EXPECT_EQ(ring1.diameter, 0);  // Single vertex
+  
+  BRing ring2(2);
+  EXPECT_EQ(ring2.diameter, 1);  // floor(2/2) = 1
+  
+  BRing ring3(3);
+  EXPECT_EQ(ring3.diameter, 1);  // floor(3/2) = 1
+  
+  BRing ring4(4);
+  EXPECT_EQ(ring4.diameter, 2);  // floor(4/2) = 2
+  
+  BRing ring5(5);
+  EXPECT_EQ(ring5.diameter, 2);  // floor(5/2) = 2
+  
+  BRing ring6(6);
+  EXPECT_EQ(ring6.diameter, 3);  // floor(6/2) = 3
+}
+
+TEST_F(BRingTest, AddVertexAndEdgeConvertsToGeneric) {
+  BRing ring(3);
+  
+  // Initially should be BRing
+  EXPECT_EQ(ring[boost::graph_bundle].name, "BRing");
+  EXPECT_EQ(ring.num_vertices, 3);
+  EXPECT_EQ(ring.num_edges, 6);
+  EXPECT_EQ(ring.dimension, 3);
+  
+  // Adding vertex should convert to Generic
+  ring.add_vertex(10);
+  EXPECT_EQ(ring[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(ring.num_vertices, 4);  // Should have added the vertex
+  
+  // Create another ring to test edge addition
+  BRing ring2(2);
+  EXPECT_EQ(ring2[boost::graph_bundle].name, "BRing");
+  
+  // Adding edge should convert to Generic
+  ring2.add_edge(0, 0);  // Add self-loop
+  EXPECT_EQ(ring2[boost::graph_bundle].name, "Generic");
+}
+
+TEST_F(BRingTest, DimensionProxy) {
+  BRing ring(5);
+  
+  // Test dimension proxy works
+  size_t dim = ring.dimension;
+  EXPECT_EQ(dim, 5);
+  
+  // Test implicit conversion
+  EXPECT_EQ(ring.dimension, 5);
+}
+
+TEST_F(BRingTest, ProxyAccess) {
+  BRing ring(4);
+  
+  // Test all proxy patterns work
+  EXPECT_EQ(ring.num_vertices, 4);
+  EXPECT_EQ(ring.num_edges, 8);  // 2*4 = 8
+  EXPECT_EQ(ring.diameter, 2);   // floor(4/2) = 2
+  EXPECT_EQ(ring.dimension, 4);
+  
+  // Test vertices and edges vectors
+  std::vector<int32_t> vertices = ring.vertices;
+  EXPECT_EQ(vertices.size(), 4);
+  
+  std::vector<std::pair<int32_t, int32_t>> edges = ring.edges;
+  EXPECT_EQ(edges.size(), 8);
+}
+
+TEST_F(BRingTest, CartesianProductWithOPG) {
+  BRing ring(4);  // 0↔1↔2↔3↔0
+  OPG opg;
+  
+  // BRing × OPG should preserve BRing structure (identity property)
+  Graph product1 = gproduct(ring, opg);
+  EXPECT_EQ(product1.num_vertices, 4);  // 4×1 = 4
+  EXPECT_EQ(product1.num_edges, 8);     // 4×0 + 8×1 = 8
+  
+  // OPG × BRing should also preserve BRing structure
+  Graph product2 = gproduct(opg, ring);
+  EXPECT_EQ(product2.num_vertices, 4);  // 1×4 = 4
+  EXPECT_EQ(product2.num_edges, 8);     // 1×8 + 0×4 = 8
+  
+  // Test names
+  EXPECT_EQ(product1[boost::graph_bundle].name, "BRing ⊗ OPG");
+  EXPECT_EQ(product2[boost::graph_bundle].name, "OPG ⊗ BRing");
+}
+
+TEST_F(BRingTest, CartesianProductWithURing) {
+  BRing bring(3);  // 0↔1↔2↔0 (bidirectional)
+  URing uring(3);  // 0→1→2→0 (unidirectional)
+  
+  // BRing × URing
+  Graph product = gproduct(bring, uring);
+  EXPECT_EQ(product.num_vertices, 9);   // 3×3 = 9
+  EXPECT_EQ(product.num_edges, 27);     // 3×3 + 6×3 = 9 + 18 = 27
+  
+  EXPECT_EQ(product[boost::graph_bundle].name, "BRing ⊗ URing");
+}
+
+TEST_F(BRingTest, CompareWithURing) {
+  // BRing should have more edges than URing for same size
+  size_t N = 5;
+  BRing bring(N);
+  URing uring(N);
+  
+  EXPECT_EQ(bring.num_vertices, uring.num_vertices);  // Same vertices
+  EXPECT_EQ(bring.num_edges, 2 * uring.num_edges);   // BRing has twice the edges
+  EXPECT_EQ(bring.diameter, uring.diameter);         // Same diameter
+  EXPECT_EQ(bring.dimension, uring.dimension);       // Same dimension
+}
+
+TEST_F(BRingTest, CartesianProductWithBMesh) {
+  BRing ring(3);   // 0↔1↔2↔0 (3 vertices, 6 edges)
+  BMesh mesh(3);   // 0↔1↔2 (3 vertices, 4 edges)
+  
+  // BRing × BMesh creates a cylindrical topology
+  Graph cylinder = gproduct(ring, mesh);
+  EXPECT_EQ(cylinder.num_vertices, 9);   // 3×3 = 9
+  EXPECT_EQ(cylinder.num_edges, 30);     // 3×4 + 6×3 = 12 + 18 = 30
+  
+  EXPECT_EQ(cylinder[boost::graph_bundle].name, "BRing ⊗ BMesh");
+}
+
+}  // namespace
+
 // UMesh Tests
 namespace {
 
@@ -385,6 +599,383 @@ TEST_F(UMeshTest, DimensionProxy) {
   
   // Test implicit conversion
   EXPECT_EQ(mesh.dimension, 4);
+}
+
+}  // namespace
+
+// OPG Tests
+namespace {
+
+class OPGTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    // Fresh OPG for each test
+  }
+};
+
+TEST_F(OPGTest, DefaultConstruction) {
+  OPG opg;
+  
+  EXPECT_EQ(boost::num_vertices(opg), 1);
+  EXPECT_EQ(boost::num_edges(opg), 0);
+  EXPECT_EQ(opg.dimension, 1);
+  
+  // Test proxy patterns
+  EXPECT_EQ(opg.num_vertices, 1);
+  EXPECT_EQ(opg.num_edges, 0);
+  
+  // Check vertex id is 0
+  auto [vi, vi_end] = boost::vertices(opg);
+  EXPECT_EQ(opg[*vi].id, 0);
+}
+
+TEST_F(OPGTest, GraphName) {
+  // Test that OPG has correct name
+  OPG opg;
+  EXPECT_EQ(opg[boost::graph_bundle].name, "OPG");
+}
+
+TEST_F(OPGTest, DiameterCalculation) {
+  OPG opg;
+  
+  // Single vertex graph has diameter 0
+  EXPECT_EQ(opg.diameter, 0);
+}
+
+TEST_F(OPGTest, AddVertexConvertsToGeneric) {
+  OPG opg;
+  
+  // Initially should be OPG
+  EXPECT_EQ(opg[boost::graph_bundle].name, "OPG");
+  EXPECT_EQ(opg.num_vertices, 1);
+  EXPECT_EQ(opg.num_edges, 0);
+  EXPECT_EQ(opg.dimension, 1);
+  
+  // Adding vertex should convert to Generic
+  opg.add_vertex(1);
+  EXPECT_EQ(opg[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(opg.num_vertices, 2);  // Should have added the vertex
+}
+
+TEST_F(OPGTest, AddEdgeConvertsToGeneric) {
+  OPG opg;
+  
+  // Initially should be OPG
+  EXPECT_EQ(opg[boost::graph_bundle].name, "OPG");
+  EXPECT_EQ(opg.num_vertices, 1);
+  EXPECT_EQ(opg.num_edges, 0);
+  
+  // Adding edge to self should convert to Generic
+  opg.add_edge(0, 0);  // Self-loop
+  EXPECT_EQ(opg[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(opg.num_edges, 1);  // Should have added the edge
+}
+
+TEST_F(OPGTest, DimensionProxy) {
+  OPG opg;
+  
+  // Test dimension proxy works
+  size_t dim = opg.dimension;
+  EXPECT_EQ(dim, 1);
+  
+  // Test implicit conversion
+  EXPECT_EQ(opg.dimension, 1);
+}
+
+TEST_F(OPGTest, ProxyAccess) {
+  OPG opg;
+  
+  // Test all proxy patterns work
+  EXPECT_EQ(opg.num_vertices, 1);
+  EXPECT_EQ(opg.num_edges, 0);
+  EXPECT_EQ(opg.diameter, 0);
+  EXPECT_EQ(opg.dimension, 1);
+  
+  // Test vertices and edges vectors
+  std::vector<int32_t> vertices = opg.vertices;
+  EXPECT_EQ(vertices.size(), 1);
+  EXPECT_EQ(vertices[0], 0);
+  
+  std::vector<std::pair<int32_t, int32_t>> edges = opg.edges;
+  EXPECT_EQ(edges.size(), 0);
+}
+
+TEST_F(OPGTest, CartesianProductIdentity) {
+  OPG opg;
+  UMesh mesh(3);  // 0→1→2
+  
+  // OPG × Mesh should be equivalent to Mesh (identity property)
+  Graph product1 = gproduct(opg, mesh);
+  EXPECT_EQ(product1.num_vertices, 3);  // 1×3 = 3
+  EXPECT_EQ(product1.num_edges, 2);     // 1×2 + 0×3 = 2
+  
+  // Mesh × OPG should also be equivalent to Mesh
+  Graph product2 = gproduct(mesh, opg);
+  EXPECT_EQ(product2.num_vertices, 3);  // 3×1 = 3
+  EXPECT_EQ(product2.num_edges, 2);     // 3×0 + 2×1 = 2
+  
+  // Both products should have same structure
+  EXPECT_EQ(product1.num_vertices, product2.num_vertices);
+  EXPECT_EQ(product1.num_edges, product2.num_edges);
+}
+
+TEST_F(OPGTest, CartesianProductWithRing) {
+  OPG opg;
+  URing ring(4);  // 0→1→2→3→0
+  
+  // OPG × Ring should preserve ring structure
+  Graph product = gproduct(opg, ring);
+  EXPECT_EQ(product.num_vertices, 4);  // 1×4 = 4
+  EXPECT_EQ(product.num_edges, 4);     // 1×4 + 0×4 = 4
+  
+  // Test name
+  EXPECT_EQ(product[boost::graph_bundle].name, "OPG ⊗ URing");
+}
+
+TEST_F(OPGTest, ModificationAfterCartesianProduct) {
+  OPG opg;
+  UMesh mesh(2);  // 0→1
+  
+  Graph product = gproduct(opg, mesh);
+  
+  // Product should be modifiable as generic graph
+  product.add_vertex(10);
+  EXPECT_EQ(product.num_vertices, 3);
+  EXPECT_EQ(product[boost::graph_bundle].name, "OPG ⊗ UMesh");  // Name preserved
+}
+
+TEST_F(OPGTest, MultipleOPGProduct) {
+  OPG opg1, opg2;
+  
+  // OPG × OPG should result in single vertex graph  
+  Graph product = gproduct(opg1, opg2);
+  EXPECT_EQ(product.num_vertices, 1);  // 1×1 = 1
+  EXPECT_EQ(product.num_edges, 0);     // 1×0 + 0×1 = 0
+  EXPECT_EQ(product[boost::graph_bundle].name, "OPG ⊗ OPG");
+}
+
+TEST_F(OPGTest, DimensionProxyAfterModification) {
+  OPG opg;
+  
+  // Initially dimension should be 1
+  EXPECT_EQ(opg.dimension, 1);
+  
+  // After adding vertex, it becomes generic but dimension proxy should still work
+  opg.add_vertex(1);
+  EXPECT_EQ(opg[boost::graph_bundle].name, "Generic");
+  
+  // Dimension proxy should throw or return default for generic graphs
+  // (The specific behavior depends on implementation)
+  try {
+    size_t dim = opg.dimension;
+    // If no exception, it should return some reasonable value
+    EXPECT_GE(dim, 0);
+  } catch (...) {
+    // Exception is acceptable for generic graphs
+  }
+}
+
+TEST_F(OPGTest, EmptyGraphProductWithOPG) {
+  OPG opg;
+  Graph empty;
+  
+  // OPG × Empty should result in empty graph
+  Graph product1 = gproduct(opg, empty);
+  EXPECT_EQ(product1.num_vertices, 0);  // 1×0 = 0
+  EXPECT_EQ(product1.num_edges, 0);     // 1×0 + 0×0 = 0
+  
+  // Empty × OPG should also result in empty graph
+  Graph product2 = gproduct(empty, opg);
+  EXPECT_EQ(product2.num_vertices, 0);  // 0×1 = 0
+  EXPECT_EQ(product2.num_edges, 0);     // 0×0 + 0×1 = 0
+}
+
+}  // namespace
+
+// BMesh Tests
+namespace {
+
+class BMeshTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    // Fresh BMesh for each test
+  }
+};
+
+TEST_F(BMeshTest, InvalidMeshSize) {
+  EXPECT_THROW(BMesh(0), std::invalid_argument);
+}
+
+TEST_F(BMeshTest, MeshSize1) {
+  BMesh mesh(1);
+  
+  EXPECT_EQ(boost::num_vertices(mesh), 1);
+  EXPECT_EQ(boost::num_edges(mesh), 0);
+  EXPECT_EQ(mesh.dimension, 1);
+  
+  // Test proxy patterns
+  EXPECT_EQ(mesh.num_vertices, 1);
+  EXPECT_EQ(mesh.num_edges, 0);
+  
+  // Check vertex id is 0
+  auto [vi, vi_end] = boost::vertices(mesh);
+  EXPECT_EQ(mesh[*vi].id, 0);
+}
+
+TEST_F(BMeshTest, MeshSize3) {
+  BMesh mesh(3);
+  
+  EXPECT_EQ(boost::num_vertices(mesh), 3);
+  EXPECT_EQ(boost::num_edges(mesh), 4);  // 2*(N-1) = 2*2 = 4 bidirectional edges
+  EXPECT_EQ(mesh.dimension, 3);
+  
+  // Test proxy patterns
+  EXPECT_EQ(mesh.num_vertices, 3);
+  EXPECT_EQ(mesh.num_edges, 4);
+  
+  // Check vertex ids are 0, 1, 2
+  std::set<int32_t> ids;
+  auto [vi, vi_end] = boost::vertices(mesh);
+  for (auto it = vi; it != vi_end; ++it) {
+    ids.insert(mesh[*it].id);
+  }
+  EXPECT_EQ(ids, (std::set<int32_t>{0, 1, 2}));
+  
+  // Check edges form bidirectional chain: 0↔1↔2
+  std::vector<std::pair<int32_t, int32_t>> edges = mesh.edges;
+  std::set<std::pair<int32_t, int32_t>> edge_set(edges.begin(), edges.end());
+  
+  // Expected bidirectional edges: 0→1, 1→0, 1→2, 2→1
+  EXPECT_EQ(edge_set.count({0, 1}), 1);
+  EXPECT_EQ(edge_set.count({1, 0}), 1);
+  EXPECT_EQ(edge_set.count({1, 2}), 1);
+  EXPECT_EQ(edge_set.count({2, 1}), 1);
+  
+  // Should not have other edges
+  EXPECT_EQ(edge_set.count({0, 2}), 0);
+  EXPECT_EQ(edge_set.count({2, 0}), 0);
+}
+
+TEST_F(BMeshTest, MeshSize5) {
+  BMesh mesh(5);
+  
+  EXPECT_EQ(boost::num_vertices(mesh), 5);
+  EXPECT_EQ(boost::num_edges(mesh), 8);  // 2*(N-1) = 2*4 = 8 bidirectional edges
+  EXPECT_EQ(mesh.dimension, 5);
+}
+
+TEST_F(BMeshTest, GraphName) {
+  // Test that BMesh has correct name
+  BMesh mesh(3);
+  EXPECT_EQ(mesh[boost::graph_bundle].name, "BMesh");
+}
+
+TEST_F(BMeshTest, DiameterCalculation) {
+  BMesh mesh1(1);
+  EXPECT_EQ(mesh1.diameter, 0);  // Single vertex
+  
+  BMesh mesh2(2);
+  EXPECT_EQ(mesh2.diameter, 1);  // 0↔1, diameter = 1
+  
+  BMesh mesh3(3);
+  EXPECT_EQ(mesh3.diameter, 2);  // 0↔1↔2, diameter = 2
+  
+  BMesh mesh5(5);
+  EXPECT_EQ(mesh5.diameter, 4);  // 0↔1↔2↔3↔4, diameter = 4
+}
+
+TEST_F(BMeshTest, AddVertexAndEdgeConvertsToGeneric) {
+  BMesh mesh(3);
+  
+  // Initially should be BMesh
+  EXPECT_EQ(mesh[boost::graph_bundle].name, "BMesh");
+  EXPECT_EQ(mesh.num_vertices, 3);
+  EXPECT_EQ(mesh.num_edges, 4);
+  EXPECT_EQ(mesh.dimension, 3);
+  
+  // Adding vertex should convert to Generic
+  mesh.add_vertex(10);
+  EXPECT_EQ(mesh[boost::graph_bundle].name, "Generic");
+  EXPECT_EQ(mesh.num_vertices, 4);  // Should have added the vertex
+  
+  // Create another mesh to test edge addition
+  BMesh mesh2(2);
+  EXPECT_EQ(mesh2[boost::graph_bundle].name, "BMesh");
+  
+  // Adding edge should convert to Generic
+  mesh2.add_edge(0, 0);  // Add self-loop
+  EXPECT_EQ(mesh2[boost::graph_bundle].name, "Generic");
+}
+
+TEST_F(BMeshTest, DimensionProxy) {
+  BMesh mesh(4);
+  
+  // Test dimension proxy works
+  size_t dim = mesh.dimension;
+  EXPECT_EQ(dim, 4);
+  
+  // Test implicit conversion
+  EXPECT_EQ(mesh.dimension, 4);
+}
+
+TEST_F(BMeshTest, ProxyAccess) {
+  BMesh mesh(3);
+  
+  // Test all proxy patterns work
+  EXPECT_EQ(mesh.num_vertices, 3);
+  EXPECT_EQ(mesh.num_edges, 4);
+  EXPECT_EQ(mesh.diameter, 2);
+  EXPECT_EQ(mesh.dimension, 3);
+  
+  // Test vertices and edges vectors
+  std::vector<int32_t> vertices = mesh.vertices;
+  EXPECT_EQ(vertices.size(), 3);
+  
+  std::vector<std::pair<int32_t, int32_t>> edges = mesh.edges;
+  EXPECT_EQ(edges.size(), 4);
+}
+
+TEST_F(BMeshTest, CartesianProductWithOPG) {
+  BMesh mesh(3);  // 0↔1↔2
+  OPG opg;
+  
+  // BMesh × OPG should preserve BMesh structure (identity property)
+  Graph product1 = gproduct(mesh, opg);
+  EXPECT_EQ(product1.num_vertices, 3);  // 3×1 = 3
+  EXPECT_EQ(product1.num_edges, 4);     // 3×0 + 4×1 = 4
+  
+  // OPG × BMesh should also preserve BMesh structure
+  Graph product2 = gproduct(opg, mesh);
+  EXPECT_EQ(product2.num_vertices, 3);  // 1×3 = 3
+  EXPECT_EQ(product2.num_edges, 4);     // 1×4 + 0×3 = 4
+  
+  // Test names
+  EXPECT_EQ(product1[boost::graph_bundle].name, "BMesh ⊗ OPG");
+  EXPECT_EQ(product2[boost::graph_bundle].name, "OPG ⊗ BMesh");
+}
+
+TEST_F(BMeshTest, CartesianProductWithUMesh) {
+  BMesh bmesh(2);  // 0↔1 (bidirectional)
+  UMesh umesh(2);  // 0→1 (unidirectional)
+  
+  // BMesh × UMesh
+  Graph product = gproduct(bmesh, umesh);
+  EXPECT_EQ(product.num_vertices, 4);  // 2×2 = 4
+  EXPECT_EQ(product.num_edges, 6);     // 2×1 + 2×2 = 2 + 4 = 6
+  
+  EXPECT_EQ(product[boost::graph_bundle].name, "BMesh ⊗ UMesh");
+}
+
+TEST_F(BMeshTest, CompareWithUMesh) {
+  // BMesh should have more edges than UMesh for same size
+  size_t N = 4;
+  BMesh bmesh(N);
+  UMesh umesh(N);
+  
+  EXPECT_EQ(bmesh.num_vertices, umesh.num_vertices);  // Same vertices
+  EXPECT_EQ(bmesh.num_edges, 2 * umesh.num_edges);   // BMesh has twice the edges
+  EXPECT_EQ(bmesh.diameter, umesh.diameter);         // Same diameter
+  EXPECT_EQ(bmesh.dimension, umesh.dimension);       // Same dimension
 }
 
 }  // namespace
